@@ -1,0 +1,7 @@
+{
+  "name": "Princess A to Z Business",
+  "description": "Comprehensive e-Governance & Citizen Services Portal for Tamil Nadu and All-India CSC services, Aadhaar, PAN, Ration, CAN Registration, DL/RC, and PVC Smart Card generation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
