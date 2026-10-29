@@ -1,4 +1,5 @@
 import { PaymentSubmission, PaymentStatus } from '../types';
+import { API_ENDPOINTS } from '../config/apiConfig';
 
 export interface PaymentItem {
   _id?: string;
@@ -20,7 +21,7 @@ export interface PaymentItem {
   createdAt: string;
 }
 
-const BASE = '/api/payments';
+const BASE = API_ENDPOINTS.payments;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

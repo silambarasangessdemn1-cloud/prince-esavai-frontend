@@ -1,9 +1,11 @@
+import { API_ENDPOINTS } from '../config/apiConfig';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Driving Services (Sarathi Parivahan / MoRTH / RTO) API Client
 //  All fetch calls to /api/driving/* with JWT auth attached
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = '/api/driving';
+const BASE = API_ENDPOINTS.driving;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

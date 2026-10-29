@@ -1,9 +1,11 @@
+import { API_ENDPOINTS } from '../config/apiConfig';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  PAN Card Services API Client
 //  All fetch calls to /api/pan/* with JWT auth attached (supporting citizen & admin)
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = '/api/pan';
+const BASE = API_ENDPOINTS.pan;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

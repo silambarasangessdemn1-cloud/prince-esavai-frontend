@@ -1,9 +1,11 @@
+import { API_ENDPOINTS } from '../config/apiConfig';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Aadhaar Issues API Service
 //  All fetch calls to /api/aadhaar/* with JWT auth attached
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = '/api/aadhaar';
+const BASE = API_ENDPOINTS.aadhaar;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

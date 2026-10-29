@@ -1,4 +1,5 @@
 import { PaymentGatewaySettings, PricingItem } from '../types';
+import { API_ENDPOINTS } from '../config/apiConfig';
 
 export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaySettings = {
   upiId: 'jjesper143@oksbi',
@@ -74,7 +75,7 @@ export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
   'pvc-maker': 80,
 };
 
-const BASE = '/api/pricing';
+const BASE = API_ENDPOINTS.pricing;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { API_ENDPOINTS } from '../config/apiConfig';
 
-const API_BASE = 'http://localhost:5001/api/auth';
+const API_BASE = API_ENDPOINTS.auth;
 
 export interface AuthUser {
   _id: string;

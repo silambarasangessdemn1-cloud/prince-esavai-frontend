@@ -1,9 +1,11 @@
+import { API_ENDPOINTS } from '../config/apiConfig';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Voter Services API Client
 //  All fetch calls to /api/voter/* with JWT auth attached
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = '/api/voter';
+const BASE = API_ENDPOINTS.voter;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

@@ -1,9 +1,11 @@
+import { API_ENDPOINTS } from '../config/apiConfig';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Vehicle Services (Vahan Parivahan / MoRTH / RTO) API Client
 //  All fetch calls to /api/vehicle/* with JWT auth attached
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = '/api/vehicle';
+const BASE = API_ENDPOINTS.vehicle;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

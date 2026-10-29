@@ -1,9 +1,11 @@
+import { API_ENDPOINTS } from '../config/apiConfig';
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Farmer Services (Uzhavan / Tamil Nadu Agriculture / PM-KISAN / Revenue) API Client
 //  All fetch calls to /api/farmer/* with JWT auth attached
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE = '/api/farmer';
+const BASE = API_ENDPOINTS.farmer;
 
 function authHeaders(): Record<string, string> {
   const token = localStorage.getItem('token') || localStorage.getItem('admin_token');

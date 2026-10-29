@@ -20,8 +20,9 @@ export default defineConfig(() => {
       // Proxy API requests to the backend server
       proxy: {
         '/api': {
-          target: 'http://localhost:5001',
+          target: process.env.VITE_API_URL || 'https://prince-esavai-backend.onrender.com',
           changeOrigin: true,
+          secure: true,
         },
       },
     },
