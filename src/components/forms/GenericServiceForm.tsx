@@ -20,6 +20,8 @@ export const GenericServiceForm: React.FC<GenericServiceFormProps> = ({ service 
     closeService,
     setActiveTab,
     setReceiptModalData,
+    getServicePrice,
+    openPaymentDialog,
   } = useApp();
 
   const [applicantName, setApplicantName] = useState('');
@@ -58,30 +60,47 @@ export const GenericServiceForm: React.FC<GenericServiceFormProps> = ({ service 
       return;
     }
 
-    setIsSubmitting(true);
+    const serviceFee = getServicePrice(service.id);
 
-    setTimeout(() => {
-      const newApp = addApplication({
-        serviceId: service.id,
-        serviceName: service.name,
-        applicantName,
-        mobile: mobileNumber,
-        status: service.actionLabel.includes('INSTANT') ? 'Completed' : 'In Process',
-        fee: 0,
-        walletType: service.walletType,
-        details: {
-          documentId,
-          district,
-          remarks,
-          processingMode: service.actionLabel,
-        },
-        remarks: `Application recorded for ${service.name}. Standard turnaround: ${service.processingTime || '24 hours'}.`,
-      });
+    // Prompt payment modal before completing submission
+    openPaymentDialog({
+      serviceName: service.name,
+      categoryLabel: service.categoryLabel,
+      amount: serviceFee,
+      applicantName,
+      applicantPhone: mobileNumber,
+      onConfirmed: (paymentDetails) => {
+        setIsSubmitting(true);
+        setTimeout(() => {
+          const newApp = addApplication({
+            serviceId: service.id,
+            serviceName: service.name,
+            applicantName,
+            mobile: mobileNumber,
+            status: 'Under Review',
+            fee: serviceFee,
+            walletType: service.walletType,
+            details: {
+              documentId,
+              district,
+              remarks,
+              processingMode: service.actionLabel,
+            },
+            remarks: `Application recorded for ${service.name}. Payment of ₹${paymentDetails.paidAmount} submitted with UTR ${paymentDetails.utrNumber} (awaiting Admin verification).`,
+            paidAmount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            paymentStatus: 'Pending Verification',
+            paymentDate: new Date().toISOString(),
+          });
 
-      confetti({ particleCount: 65, spread: 55 });
-      setIsSubmitting(false);
-      setReceiptModalData(newApp);
-    }, 500);
+          confetti({ particleCount: 65, spread: 55 });
+          setIsSubmitting(false);
+        }, 400);
+      },
+    });
   };
 
   return (
@@ -229,7 +248,7 @@ export const GenericServiceForm: React.FC<GenericServiceFormProps> = ({ service 
               className="w-full sm:w-auto flex items-center justify-center gap-2 px-8 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white rounded-lg text-sm font-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-60"
             >
               <Send className="w-4 h-4" />
-              <span>{isSubmitting ? 'Processing...' : 'Submit Form'}</span>
+              <span>{isSubmitting ? 'Processing...' : `Pay ₹${getServicePrice(service.id)} & Submit Form`}</span>
             </button>
           </div>
         </form>

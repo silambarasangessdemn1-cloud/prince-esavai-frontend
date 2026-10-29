@@ -16,6 +16,7 @@ import {
   Fingerprint,
 } from 'lucide-react';
 import { aadhaarApi, MetaResponse } from '../../services/aadhaarApi';
+import { paymentApi } from '../../services/paymentApi';
 
 const PRIORITY_COLORS: Record<string, string> = {
   Low: 'bg-slate-100 text-slate-700',
@@ -35,7 +36,7 @@ const INITIAL_FORM = {
 };
 
 export const AadhaarIssueForm: React.FC = () => {
-  const { setActiveTab, closeService } = useApp();
+  const { setActiveTab, closeService, getServicePrice, openPaymentDialog, addApplication, setReceiptModalData } = useApp();
 
   const [meta, setMeta] = useState<MetaResponse | null>(null);
   const [form, setForm] = useState(INITIAL_FORM);
@@ -91,35 +92,76 @@ export const AadhaarIssueForm: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    const fee = getServicePrice('aadhaar-issue');
 
-    const res = await aadhaarApi.submitIssue({
-      aadhaarNumber: form.aadhaarNumber.trim(),
+    // Prompt UPI QR payment before submit
+    openPaymentDialog({
+      serviceName: `Aadhaar Service: ${form.issueType}`,
+      categoryLabel: 'AADHAAR SERVICES',
+      amount: fee,
       applicantName: form.applicantName.trim(),
       applicantPhone: form.applicantPhone.trim(),
-      applicantEmail: form.applicantEmail.trim(),
-      issueType: form.issueType,
-      issueDescription: form.issueDescription.trim(),
-      priority: form.priority,
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+
+        const res = await aadhaarApi.submitIssue({
+          aadhaarNumber: form.aadhaarNumber.trim(),
+          applicantName: form.applicantName.trim(),
+          applicantPhone: form.applicantPhone.trim(),
+          applicantEmail: form.applicantEmail.trim(),
+          issueType: form.issueType,
+          issueDescription: form.issueDescription.trim(),
+          priority: form.priority,
+        });
+
+        setIsSubmitting(false);
+
+        const ticketNum = res.success && res.data ? res.data.issue.ticketNumber : `ADH-${Date.now()}`;
+
+        // Record payment in payment store
+        await paymentApi.submitPayment({
+          ticketNumber: ticketNum,
+          serviceId: 'aadhaar-issue',
+          serviceName: `Aadhaar Correction (${form.issueType})`,
+          category: 'Aadhaar',
+          applicantName: form.applicantName.trim(),
+          applicantPhone: form.applicantPhone.trim(),
+          amount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          status: 'Pending Verification',
+        });
+
+        // Also add application locally
+        const appRec = addApplication({
+          serviceId: 'aadhaar-issue',
+          serviceName: `Aadhaar Correction (${form.issueType})`,
+          applicantName: form.applicantName.trim(),
+          mobile: form.applicantPhone.trim(),
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            aadhaarNumber: `XXXX-XXXX-${form.aadhaarNumber.slice(-4)}`,
+            issueType: form.issueType,
+            priority: form.priority,
+          },
+          remarks: `Payment of ₹${paymentDetails.paidAmount} submitted via UPI QR (UTR: ${paymentDetails.utrNumber}). Verification in progress.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        setSuccessTicket(ticketNum);
+        setForm(INITIAL_FORM);
+      },
     });
-
-    setIsSubmitting(false);
-
-    if (res.success && res.data) {
-      setSuccessTicket(res.data.issue.ticketNumber);
-      setForm(INITIAL_FORM);
-      return;
-    }
-
-    // Handle validation errors from server
-    if (res.errors && res.errors.length > 0) {
-      const fe: Record<string, string> = {};
-      res.errors.forEach((err) => { fe[err.field] = err.message; });
-      setFieldErrors(fe);
-      return;
-    }
-
-    setErrorMsg(res.message || 'Failed to submit issue. Please try again.');
   };
 
   const inputClass = (name: string) =>

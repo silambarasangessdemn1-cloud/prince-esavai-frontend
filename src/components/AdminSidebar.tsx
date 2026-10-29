@@ -19,9 +19,12 @@ import {
   Database,
   X,
   Sprout,
+  Tag,
+  QrCode,
+  DollarSign,
 } from 'lucide-react';
 
-export type AdminQueue = 'aadhaar' | 'pan' | 'voter' | 'ration' | 'driving' | 'vehicle' | 'farmer';
+export type AdminQueue = 'aadhaar' | 'pan' | 'voter' | 'ration' | 'driving' | 'vehicle' | 'farmer' | 'pricing' | 'payments';
 export type AdminQuickTab = 'all' | 'pending' | 'in_progress' | 'resolved';
 
 export interface AdminQueueCounts {
@@ -32,6 +35,8 @@ export interface AdminQueueCounts {
   driving: number;
   vehicle: number;
   farmer: number;
+  pricing?: number;
+  payments?: number;
   total: number;
 }
 
@@ -217,6 +222,108 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
         {/* Primary Service Queues */}
         <div className="px-3 py-1 flex-1 space-y-4">
+          {/* Gateway & Service Pricing Section */}
+          <div>
+            <div className="px-2 pb-1.5 text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Pricing & Gateway</span>
+              <span className="text-[10px] font-mono text-amber-400 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-800">
+                Admin
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              {/* Pricing Portal */}
+              <button
+                type="button"
+                onClick={() => handleQueueClick('pricing')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all cursor-pointer text-left group ${
+                  activeQueue === 'pricing'
+                    ? 'bg-[#10b981] text-slate-950 font-black shadow-lg shadow-emerald-500/25 translate-x-0.5'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      activeQueue === 'pricing'
+                        ? 'bg-slate-950/20 text-slate-950'
+                        : 'bg-[#131b2e] text-[#10b981] group-hover:bg-slate-700/80 border border-slate-800'
+                    }`}
+                  >
+                    <Tag className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate font-black text-xs leading-tight">
+                      Service Pricing Portal
+                    </div>
+                    <div
+                      className={`text-[10px] truncate ${
+                        activeQueue === 'pricing' ? 'text-slate-900 font-semibold' : 'text-slate-400'
+                      }`}
+                    >
+                      Set prices for all services
+                    </div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[11px] font-black font-mono px-2 py-0.5 rounded-full shrink-0 ml-1.5 ${
+                    activeQueue === 'pricing'
+                      ? 'bg-slate-950 text-white shadow-xs'
+                      : 'bg-[#090d16] text-emerald-400 border border-slate-800'
+                  }`}
+                >
+                  44+
+                </span>
+              </button>
+
+              {/* Payment Verifications */}
+              <button
+                type="button"
+                onClick={() => handleQueueClick('payments')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all cursor-pointer text-left group ${
+                  activeQueue === 'payments'
+                    ? 'bg-[#10b981] text-slate-950 font-black shadow-lg shadow-emerald-500/25 translate-x-0.5'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      activeQueue === 'payments'
+                        ? 'bg-slate-950/20 text-slate-950'
+                        : 'bg-[#131b2e] text-[#10b981] group-hover:bg-slate-700/80 border border-slate-800'
+                    }`}
+                  >
+                    <QrCode className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate font-black text-xs leading-tight">
+                      Payment Verifications
+                    </div>
+                    <div
+                      className={`text-[10px] truncate ${
+                        activeQueue === 'payments' ? 'text-slate-900 font-semibold' : 'text-slate-400'
+                      }`}
+                    >
+                      UTR & QR approval queue
+                    </div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[11px] font-black font-mono px-2 py-0.5 rounded-full shrink-0 ml-1.5 ${
+                    activeQueue === 'payments'
+                      ? 'bg-slate-950 text-white shadow-xs'
+                      : (counts.payments || 0) > 0
+                      ? 'bg-amber-500 text-slate-950 font-black animate-pulse'
+                      : 'bg-[#090d16] text-emerald-400 border border-slate-800'
+                  }`}
+                >
+                  {counts.payments || 0}
+                </span>
+              </button>
+            </div>
+          </div>
+
           <div>
             <div className="px-2 pb-1.5 text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
               <span>Service Request Queues</span>

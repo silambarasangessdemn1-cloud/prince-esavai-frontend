@@ -76,6 +76,7 @@ const DashboardContent: React.FC = () => {
 
     switch (activeTab) {
       case 'profile':
+      case 'my_profile':
         return <ProfileView />;
       case 'service_history':
       case 'all_service_status':
@@ -112,7 +113,7 @@ const DashboardContent: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f1f5f9] flex flex-col selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen bg-[#f1f5f9] flex flex-col selection:bg-emerald-500 selection:text-white overflow-x-hidden w-full max-w-full">
       {/* Top Header */}
       <Header
         isSidebarOpen={isSidebarOpen}
@@ -120,10 +121,10 @@ const DashboardContent: React.FC = () => {
       />
 
       {/* Main Container with Sidebar + Content */}
-      <div className="flex-1 flex w-full">
+      <div className="flex-1 flex w-full min-w-0 overflow-x-hidden">
         <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
 
-        <main className="flex-1 p-3 sm:p-5 lg:p-6 overflow-y-auto max-w-[1600px] mx-auto w-full">
+        <main className="flex-1 p-2.5 sm:p-5 lg:p-6 overflow-y-auto overflow-x-hidden max-w-[1600px] mx-auto w-full min-w-0">
           {/* Breadcrumb / Back Bar when a service is opened */}
           {selectedService && (
             <div className="mb-4 flex items-center justify-between bg-white px-4 py-2.5 rounded-xl border border-slate-200/90 shadow-2xs text-xs">

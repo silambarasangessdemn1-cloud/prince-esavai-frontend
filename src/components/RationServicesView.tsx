@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { ServiceIcon } from './ServiceIcon';
 import { useApp } from '../context/AppContext';
+import { paymentApi } from '../services/paymentApi';
+import confetti from 'canvas-confetti';
 import {
   rationApi,
   RationRequest,
@@ -177,7 +179,7 @@ const STATUS_BADGES: Record<string, string> = {
 //  Main Ration Services View Component
 // ─────────────────────────────────────────────────────────────────────────────
 export const RationServicesView: React.FC = () => {
-  const { setActiveTab } = useApp();
+  const { setActiveTab, getServicePrice, openPaymentDialog, addApplication } = useApp();
 
   // State
   const [activeCategory, setActiveCategory] = useState<'all' | 'new' | 'members' | 'corrections' | 'download' | 'tickets'>('all');
@@ -356,46 +358,100 @@ export const RationServicesView: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
     setFieldErrors({});
+    const fee = getServicePrice(selectedService.id);
 
-    try {
-      const validMembers = membersList.filter((m) => m.name.trim().length > 0);
+    // Prompt UPI QR payment modal before completing submission
+    openPaymentDialog({
+      serviceName: selectedService.name,
+      categoryLabel: 'RATION SERVICES',
+      amount: fee,
+      applicantName: formData.applicantName.trim(),
+      applicantPhone: cleanPhone,
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+        setFieldErrors({});
 
-      const res = await rationApi.submitRequest({
-        serviceType: selectedService.backendServiceType,
-        rationCardNumber: formData.rationCardNumber.trim().toUpperCase(),
-        cardType: formData.cardType,
-        applicantName: formData.applicantName.trim(),
-        relativeName: formData.relativeName.trim(),
-        relationType: formData.relationType,
-        gender: formData.gender,
-        dateOfBirth: formData.dateOfBirth,
-        applicantPhone: cleanPhone,
-        applicantEmail: formData.applicantEmail.trim(),
-        aadhaarNumber: formData.aadhaarNumber.replace(/\D/g, ''),
-        district: formData.district,
-        taluk: formData.taluk.trim(),
-        villageOrWard: formData.villageOrWard.trim(),
-        fpsCode: formData.fpsCode.trim(),
-        newAddress: formData.newAddress.trim(),
-        members: selectedService.category === 'members' ? validMembers : [],
-        correctionDetails: formData.correctionDetails.trim(),
-        remarksOrNotes: formData.remarksOrNotes.trim(),
-        priority: formData.priority,
-      });
+        const ticketNum = `RAT-${Date.now()}`;
 
-      if (res.success && res.ticketNumber) {
-        setSubmitSuccess(res.ticketNumber);
-        await loadRequestsAndStats();
-      } else {
-        setFieldErrors({ general: res.message || 'Submission failed. Please check inputs.' });
-      }
-    } catch (err: any) {
-      setFieldErrors({ general: err.message || 'An error occurred during submission.' });
-    } finally {
-      setIsSubmitting(false);
-    }
+        // Immediately add to local & history storage (which triggers bilingual confirmation modal instantly!)
+        addApplication({
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          applicantName: formData.applicantName.trim(),
+          mobile: cleanPhone,
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            ...formData,
+            ticketNumber: ticketNum,
+          },
+          remarks: `Payment of ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        confetti({ particleCount: 70, spread: 60, origin: { y: 0.6 } });
+        setSubmitSuccess(ticketNum);
+
+        try {
+          const validMembers = membersList.filter((m) => m.name.trim().length > 0);
+
+          const res = await rationApi.submitRequest({
+            serviceType: selectedService.backendServiceType,
+            rationCardNumber: formData.rationCardNumber.trim().toUpperCase(),
+            cardType: formData.cardType,
+            applicantName: formData.applicantName.trim(),
+            relativeName: formData.relativeName.trim(),
+            relationType: formData.relationType,
+            gender: formData.gender,
+            dateOfBirth: formData.dateOfBirth,
+            applicantPhone: cleanPhone,
+            applicantEmail: formData.applicantEmail.trim(),
+            aadhaarNumber: formData.aadhaarNumber.replace(/\D/g, ''),
+            district: formData.district,
+            taluk: formData.taluk.trim(),
+            villageOrWard: formData.villageOrWard.trim(),
+            fpsCode: formData.fpsCode.trim(),
+            newAddress: formData.newAddress.trim(),
+            members: selectedService.category === 'members' ? validMembers : [],
+            correctionDetails: formData.correctionDetails.trim(),
+            remarksOrNotes: formData.remarksOrNotes.trim(),
+            priority: formData.priority,
+          });
+
+          const finalTicket = res.success && res.ticketNumber ? res.ticketNumber : ticketNum;
+
+          // Record payment in payments DB & localStorage
+          await paymentApi.submitPayment({
+            ticketNumber: finalTicket,
+            serviceId: selectedService.id,
+            serviceName: selectedService.name,
+            category: 'Ration',
+            applicantName: formData.applicantName.trim(),
+            applicantPhone: cleanPhone,
+            amount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            status: 'Pending Verification',
+          });
+
+          await loadRequestsAndStats();
+        } catch (err: any) {
+          console.warn('Backend sync in background:', err);
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   // Live Identifier Lookup

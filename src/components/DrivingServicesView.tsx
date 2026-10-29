@@ -25,6 +25,7 @@ import {
   DrivingRequest,
   DrivingStatsResponse,
 } from '../services/drivingApi';
+import { paymentApi } from '../services/paymentApi';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Driving Service Cards Definitions (Sarathi Parivahan / MoRTH / RTO)
@@ -181,7 +182,7 @@ const STATUS_BADGES: Record<string, string> = {
 //  Main Driving Services View Component
 // ─────────────────────────────────────────────────────────────────────────────
 export const DrivingServicesView: React.FC = () => {
-  const { setActiveTab } = useApp();
+  const { setActiveTab, getServicePrice, openPaymentDialog, addApplication, setReceiptModalData } = useApp();
 
   // State
   const [activeCategory, setActiveCategory] = useState<'all' | 'll' | 'dl' | 'renewal' | 'download' | 'tickets'>('all');
@@ -335,42 +336,94 @@ export const DrivingServicesView: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    setFieldErrors({});
+    const fee = getServicePrice(selectedService.id);
 
-    try {
-      const res = await drivingApi.submitRequest({
-        serviceType: selectedService.backendServiceType,
-        drivingLicenseNumber: formData.drivingLicenseNumber.trim().toUpperCase(),
-        learnerLicenseNumber: formData.learnerLicenseNumber.trim().toUpperCase(),
-        vehicleClass: formData.vehicleClass,
-        applicantName: formData.applicantName.trim(),
-        relativeName: formData.relativeName.trim(),
-        relationType: formData.relationType,
-        gender: formData.gender,
-        dateOfBirth: formData.dateOfBirth,
-        bloodGroup: formData.bloodGroup,
-        applicantPhone: cleanPhone,
-        applicantEmail: formData.applicantEmail.trim(),
-        aadhaarNumber: formData.aadhaarNumber.replace(/\D/g, ''),
-        rtoOffice: formData.rtoOffice,
-        newAddress: formData.newAddress.trim(),
-        correctionDetails: formData.correctionDetails.trim(),
-        remarksOrNotes: formData.remarksOrNotes.trim(),
-        priority: formData.priority,
-      });
+    openPaymentDialog({
+      serviceName: selectedService.name,
+      categoryLabel: 'DRIVING SERVICES',
+      amount: fee,
+      applicantName: formData.applicantName.trim(),
+      applicantPhone: cleanPhone,
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+        setFieldErrors({});
 
-      if (res.success && res.ticketNumber) {
-        setSubmitSuccess(res.ticketNumber);
-        await loadRequestsAndStats();
-      } else {
-        setFieldErrors({ general: res.message || 'Submission failed. Please check inputs.' });
-      }
-    } catch (err: any) {
-      setFieldErrors({ general: err.message || 'An error occurred during submission.' });
-    } finally {
-      setIsSubmitting(false);
-    }
+        const ticketNum = `DL-${Date.now()}`;
+
+        // Immediately add application locally (opens confirmation modal instantly!)
+        addApplication({
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          applicantName: formData.applicantName.trim(),
+          mobile: cleanPhone,
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            ...formData,
+            ticketNumber: ticketNum,
+          },
+          remarks: `Fee of ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+        setSubmitSuccess(ticketNum);
+
+        try {
+          const res = await drivingApi.submitRequest({
+            serviceType: selectedService.backendServiceType,
+            drivingLicenseNumber: formData.drivingLicenseNumber.trim().toUpperCase(),
+            learnerLicenseNumber: formData.learnerLicenseNumber.trim().toUpperCase(),
+            vehicleClass: formData.vehicleClass,
+            applicantName: formData.applicantName.trim(),
+            relativeName: formData.relativeName.trim(),
+            relationType: formData.relationType,
+            gender: formData.gender,
+            dateOfBirth: formData.dateOfBirth,
+            bloodGroup: formData.bloodGroup,
+            applicantPhone: cleanPhone,
+            applicantEmail: formData.applicantEmail.trim(),
+            aadhaarNumber: formData.aadhaarNumber.replace(/\D/g, ''),
+            rtoOffice: formData.rtoOffice,
+            newAddress: formData.newAddress.trim(),
+            correctionDetails: formData.correctionDetails.trim(),
+            remarksOrNotes: formData.remarksOrNotes.trim(),
+            priority: formData.priority,
+          });
+
+          const finalTicket = res.success && res.ticketNumber ? res.ticketNumber : ticketNum;
+
+          // Record payment
+          await paymentApi.submitPayment({
+            ticketNumber: finalTicket,
+            serviceId: selectedService.id,
+            serviceName: selectedService.name,
+            category: 'Driving',
+            applicantName: formData.applicantName.trim(),
+            applicantPhone: cleanPhone,
+            amount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            status: 'Pending Verification',
+          });
+
+          await loadRequestsAndStats();
+        } catch (err: any) {
+          console.warn('Backend sync in background:', err);
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   // Live Identifier Lookup

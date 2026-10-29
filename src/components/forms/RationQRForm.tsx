@@ -9,6 +9,8 @@ export const RationQRForm: React.FC = () => {
     closeService,
     setActiveTab,
     setReceiptModalData,
+    getServicePrice,
+    openPaymentDialog,
   } = useApp();
 
   const [formData, setFormData] = useState({
@@ -51,27 +53,43 @@ export const RationQRForm: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    const fee = getServicePrice('ration-qr-code');
 
-    setTimeout(() => {
-      const newApp = addApplication({
-        serviceId: 'ration-qr-code',
-        serviceName: 'TN Ration Card QR Code Generation(Without OTP)',
-        applicantName: formData.applicantName,
-        mobile: formData.mobileNumber,
-        status: 'Completed',
-        fee: 0,
-        walletType: 'payments',
-        details: {
-          ...formData,
-        },
-        remarks: 'Digital Smart QR generated for TNePDS Fair Price Shop biometric terminal.',
-      });
+    openPaymentDialog({
+      serviceName: 'TN Ration Card QR Code Generation (Without OTP)',
+      categoryLabel: 'RATION SERVICES',
+      amount: fee,
+      applicantName: formData.applicantName,
+      applicantPhone: formData.mobileNumber,
+      onConfirmed: (paymentDetails) => {
+        setIsSubmitting(true);
+        setTimeout(() => {
+          const newApp = addApplication({
+            serviceId: 'ration-qr-code',
+            serviceName: 'TN Ration Card QR Code Generation(Without OTP)',
+            applicantName: formData.applicantName,
+            mobile: formData.mobileNumber,
+            status: 'Under Review',
+            fee,
+            walletType: 'payments',
+            details: {
+              ...formData,
+            },
+            remarks: `Digital Smart QR generated for TNePDS Fair Price Shop biometric terminal. Fee ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}.`,
+            paidAmount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            paymentStatus: 'Pending Verification',
+            paymentDate: new Date().toISOString(),
+          });
 
-      confetti({ particleCount: 70, spread: 60 });
-      setIsSubmitting(false);
-      setReceiptModalData(newApp);
-    }, 500);
+          confetti({ particleCount: 70, spread: 60 });
+          setIsSubmitting(false);
+        }, 400);
+      },
+    });
   };
 
   return (

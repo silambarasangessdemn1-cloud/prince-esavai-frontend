@@ -15,6 +15,8 @@ export const CANRegistrationForm: React.FC = () => {
     closeService,
     setActiveTab,
     setReceiptModalData,
+    getServicePrice,
+    openPaymentDialog,
   } = useApp();
 
   const [formData, setFormData] = useState({
@@ -89,27 +91,43 @@ export const CANRegistrationForm: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    const fee = getServicePrice('can-registration');
 
-    setTimeout(() => {
-      const newApp = addApplication({
-        serviceId: 'can-registration',
-        serviceName: 'CAN Registration Tamil Nadu',
-        applicantName: formData.applicantName,
-        mobile: formData.applicantMobile,
-        status: 'In Process',
-        fee: 0,
-        walletType: 'cards',
-        details: {
-          ...formData,
-        },
-        remarks: 'Offline application sent to TN e-Governance Tahsildar queue.',
-      });
+    openPaymentDialog({
+      serviceName: 'CAN Registration Tamil Nadu',
+      categoryLabel: 'CITIZEN REGISTRATION',
+      amount: fee,
+      applicantName: formData.applicantName,
+      applicantPhone: formData.applicantMobile,
+      onConfirmed: (paymentDetails) => {
+        setIsSubmitting(true);
+        setTimeout(() => {
+          const newApp = addApplication({
+            serviceId: 'can-registration',
+            serviceName: 'CAN Registration Tamil Nadu',
+            applicantName: formData.applicantName,
+            mobile: formData.applicantMobile,
+            status: 'Under Review',
+            fee,
+            walletType: 'cards',
+            details: {
+              ...formData,
+            },
+            remarks: `Offline application sent to TN e-Governance Tahsildar queue. Fee ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}.`,
+            paidAmount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            paymentStatus: 'Pending Verification',
+            paymentDate: new Date().toISOString(),
+          });
 
-      confetti({ particleCount: 70, spread: 60 });
-      setIsSubmitting(false);
-      setReceiptModalData(newApp);
-    }, 500);
+          confetti({ particleCount: 70, spread: 60 });
+          setIsSubmitting(false);
+        }, 400);
+      },
+    });
   };
 
   return (

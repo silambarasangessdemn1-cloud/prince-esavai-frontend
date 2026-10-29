@@ -9,6 +9,8 @@ export const RationMobileLinkForm: React.FC = () => {
     closeService,
     setActiveTab,
     setReceiptModalData,
+    getServicePrice,
+    openPaymentDialog,
   } = useApp();
 
   const [formData, setFormData] = useState({
@@ -51,27 +53,43 @@ export const RationMobileLinkForm: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
+    const fee = getServicePrice('ration-mobile-link');
 
-    setTimeout(() => {
-      const newApp = addApplication({
-        serviceId: 'ration-mobile-link',
-        serviceName: 'TN Ration Card New Mobile No Link (Without otp)',
-        applicantName: formData.familyHeadName,
-        mobile: formData.mobileNumber,
-        status: 'In Process',
-        fee: 0,
-        walletType: 'payments',
-        details: {
-          ...formData,
-        },
-        remarks: 'Mobile number link request routed to TNePDS Civil Supplies portal without OTP.',
-      });
+    openPaymentDialog({
+      serviceName: 'TN Ration Card New Mobile No Link (Without OTP)',
+      categoryLabel: 'RATION SERVICES',
+      amount: fee,
+      applicantName: formData.familyHeadName,
+      applicantPhone: formData.mobileNumber,
+      onConfirmed: (paymentDetails) => {
+        setIsSubmitting(true);
+        setTimeout(() => {
+          const newApp = addApplication({
+            serviceId: 'ration-mobile-link',
+            serviceName: 'TN Ration Card New Mobile No Link (Without otp)',
+            applicantName: formData.familyHeadName,
+            mobile: formData.mobileNumber,
+            status: 'Under Review',
+            fee,
+            walletType: 'payments',
+            details: {
+              ...formData,
+            },
+            remarks: `Mobile number link request routed to TNePDS Civil Supplies portal without OTP. Fee ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}.`,
+            paidAmount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            paymentStatus: 'Pending Verification',
+            paymentDate: new Date().toISOString(),
+          });
 
-      confetti({ particleCount: 70, spread: 60 });
-      setIsSubmitting(false);
-      setReceiptModalData(newApp);
-    }, 500);
+          confetti({ particleCount: 70, spread: 60 });
+          setIsSubmitting(false);
+        }, 400);
+      },
+    });
   };
 
   return (

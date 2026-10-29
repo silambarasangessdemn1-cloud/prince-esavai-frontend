@@ -32,6 +32,7 @@ import {
   Check,
 } from 'lucide-react';
 import { farmerApi, FarmerRequest, FarmerStatsResponse } from '../services/farmerApi';
+import { paymentApi } from '../services/paymentApi';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 
@@ -214,7 +215,7 @@ const STATUS_BADGES: Record<string, { label: string; badge: string; dot: string 
 
 export const FarmerServicesView: React.FC = () => {
   const { user } = useAuth();
-  const { setActiveTab } = useApp();
+  const { setActiveTab, getServicePrice, openPaymentDialog, addApplication, setReceiptModalData } = useApp();
 
   // Navigation Sub-Tabs
   const [activeSubTab, setActiveSubTab] = useState<'catalog' | 'lookup' | 'history'>('catalog');
@@ -319,44 +320,105 @@ export const FarmerServicesView: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    setFormError('');
+    const fee = getServicePrice(selectedService.id);
 
-    const res = await farmerApi.createRequest({
-      serviceType: selectedService.serviceType,
-      farmerName,
-      fatherOrHusbandName,
-      contactNumber,
-      alternateNumber,
-      aadhaarNumber,
-      gender,
-      community,
-      farmerCategory,
-      district,
-      taluk,
-      village,
-      pattaNumber,
-      surveyNumber,
-      totalLandArea,
-      cropName,
-      season,
-      irrigationSource,
-      bankName,
-      bankAccountNumber,
-      bankIfscCode,
-      pmKisanBeneficiaryId,
-      schemeSpecificNotes,
+    openPaymentDialog({
+      serviceName: selectedService.name,
+      categoryLabel: 'FARMER SERVICES',
+      amount: fee,
+      applicantName: farmerName.trim(),
+      applicantPhone: contactNumber.trim(),
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+        setFormError('');
+
+        const ticketNum = `FRM-${Date.now()}`;
+
+        // Add application locally immediately (opens confirmation modal instantly!)
+        addApplication({
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          applicantName: farmerName.trim(),
+          mobile: contactNumber.trim(),
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            farmerName,
+            district,
+            taluk,
+            village,
+            ticketNumber: ticketNum,
+          },
+          remarks: `Fee of ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+
+        try {
+          const res = await farmerApi.createRequest({
+            serviceType: selectedService.serviceType,
+            farmerName,
+            fatherOrHusbandName,
+            contactNumber,
+            alternateNumber,
+            aadhaarNumber,
+            gender,
+            community,
+            farmerCategory,
+            district,
+            taluk,
+            village,
+            pattaNumber,
+            surveyNumber,
+            totalLandArea,
+            cropName,
+            season,
+            irrigationSource,
+            bankName,
+            bankAccountNumber,
+            bankIfscCode,
+            pmKisanBeneficiaryId,
+            schemeSpecificNotes,
+          });
+
+          const finalTicket = res.success && res.data ? res.data.ticketNumber : ticketNum;
+
+          // Record payment
+          await paymentApi.submitPayment({
+            ticketNumber: finalTicket,
+            serviceId: selectedService.id,
+            serviceName: selectedService.name,
+            category: 'Farmer',
+            applicantName: farmerName.trim(),
+            applicantPhone: contactNumber.trim(),
+            amount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            status: 'Pending Verification',
+          });
+
+          if (res.success && res.data) {
+            setSubmittedRequest(res.data);
+            loadStats();
+            loadHistory(1);
+          }
+        } catch (e) {
+          console.warn('Backend sync in background:', e);
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
     });
-
-    setIsSubmitting(false);
-
-    if (res.success && res.data) {
-      setSubmittedRequest(res.data);
-      loadStats();
-      loadHistory(1);
-    } else {
-      setFormError(res.message || 'Submission failed. Please verify your details.');
-    }
   };
 
   // Perform Lookup Tracker

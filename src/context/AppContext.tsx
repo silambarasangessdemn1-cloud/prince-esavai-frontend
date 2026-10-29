@@ -5,9 +5,14 @@ import {
   ServiceItem,
   TransactionRecord,
   WalletType,
+  PaymentGatewaySettings,
 } from '../types';
 import { ALL_SERVICES } from '../data/servicesData';
 import { useAuth } from './AuthContext';
+import { pricingApi, DEFAULT_SERVICE_PRICES, DEFAULT_PAYMENT_SETTINGS } from '../services/pricingApi';
+import { paymentApi } from '../services/paymentApi';
+import { PaymentModal } from '../components/PaymentModal';
+import { PaymentSuccessModal } from '../components/PaymentSuccessModal';
 
 interface AppContextType {
   activeTab: string;
@@ -16,6 +21,33 @@ interface AppContextType {
   setSelectedService: (service: ServiceItem | null) => void;
   openService: (service: ServiceItem) => void;
   closeService: () => void;
+
+  // Service Pricing & Gateway
+  servicePrices: Record<string, number>;
+  getServicePrice: (serviceId: string) => number;
+  updateServicePrice: (serviceId: string, price: number) => void;
+  paymentSettings: PaymentGatewaySettings;
+  updatePaymentSettings: (settings: Partial<PaymentGatewaySettings>) => void;
+
+  // Payment Verification Modal Trigger
+  openPaymentDialog: (params: {
+    serviceName: string;
+    categoryLabel?: string;
+    amount?: number;
+    serviceId?: string;
+    applicantName: string;
+    applicantPhone: string;
+    onConfirmed: (paymentDetails: {
+      utrNumber: string;
+      paidAmount: number;
+      upiIdUsed: string;
+      paymentScreenshot?: string;
+    }) => void;
+  }) => void;
+
+  // Post-Payment Success Bilingual Popup
+  paymentSuccessModalData: ApplicationRecord | null;
+  setPaymentSuccessModalData: (app: ApplicationRecord | null) => void;
 
   // Wallets
   paymentsWallet: number;
@@ -106,15 +138,161 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // User-scoped applications: never leak Account A's applications to Account B
-  const [applications, setApplications] = useState<ApplicationRecord[]>(() => {
-    if (!user?._id) return [];
+  // Service Pricing & Payment Gateway settings
+  const [servicePrices, setServicePrices] = useState<Record<string, number>>(() => {
     try {
-      const saved = localStorage.getItem(`esevai_apps_${user._id}`);
-      return saved ? JSON.parse(saved) : [];
+      const saved = localStorage.getItem('esevai_service_prices');
+      return saved ? { ...DEFAULT_SERVICE_PRICES, ...JSON.parse(saved) } : { ...DEFAULT_SERVICE_PRICES };
+    } catch {
+      return { ...DEFAULT_SERVICE_PRICES };
+    }
+  });
+
+  const [paymentSettings, setPaymentSettings] = useState<PaymentGatewaySettings>(() => {
+    try {
+      const saved = localStorage.getItem('esevai_payment_settings');
+      return saved ? { ...DEFAULT_PAYMENT_SETTINGS, ...JSON.parse(saved) } : { ...DEFAULT_PAYMENT_SETTINGS };
+    } catch {
+      return { ...DEFAULT_PAYMENT_SETTINGS };
+    }
+  });
+
+  useEffect(() => {
+    pricingApi.getConfig().then(({ settings: loadedSettings, prices: loadedPrices }) => {
+      setPaymentSettings(loadedSettings);
+      setServicePrices(loadedPrices);
+    });
+  }, []);
+
+  const getServicePrice = (serviceId: string): number => {
+    if (servicePrices[serviceId] !== undefined) {
+      return servicePrices[serviceId];
+    }
+    return DEFAULT_SERVICE_PRICES[serviceId] ?? 50;
+  };
+
+  const updateServicePrice = (serviceId: string, price: number) => {
+    setServicePrices((prev) => {
+      const next = { ...prev, [serviceId]: price };
+      localStorage.setItem('esevai_service_prices', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const updatePaymentSettings = (updated: Partial<PaymentGatewaySettings>) => {
+    setPaymentSettings((prev) => {
+      const next = { ...prev, ...updated };
+      localStorage.setItem('esevai_payment_settings', JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Payment Dialog State
+  const [paymentDialogParams, setPaymentDialogParams] = useState<{
+    isOpen: boolean;
+    serviceName: string;
+    categoryLabel?: string;
+    amount: number;
+    applicantName: string;
+    applicantPhone: string;
+    onConfirmed: (details: {
+      utrNumber: string;
+      paidAmount: number;
+      upiIdUsed: string;
+      paymentScreenshot?: string;
+    }) => void;
+  } | null>(null);
+
+  const openPaymentDialog = (params: {
+    serviceName: string;
+    categoryLabel?: string;
+    amount?: number;
+    serviceId?: string;
+    applicantName: string;
+    applicantPhone: string;
+    onConfirmed: (details: any) => void;
+  }) => {
+    const fee = params.amount !== undefined ? params.amount : (params.serviceId ? getServicePrice(params.serviceId) : 50);
+    setPaymentDialogParams({
+      isOpen: true,
+      serviceName: params.serviceName,
+      categoryLabel: params.categoryLabel || 'e-Sevai Service',
+      amount: fee,
+      applicantName: params.applicantName,
+      applicantPhone: params.applicantPhone,
+      onConfirmed: (details) => {
+        setPaymentDialogParams(null);
+        params.onConfirmed(details);
+      },
+    });
+  };
+
+  // Post-payment success bilingual popup state
+  const [paymentSuccessModalData, setPaymentSuccessModalData] = useState<ApplicationRecord | null>(null);
+
+  // Helper to load applications combining user storage, all-apps backup, and payments storage
+  const loadStoredApplications = (userId?: string): ApplicationRecord[] => {
+    try {
+      let list: ApplicationRecord[] = [];
+      if (userId) {
+        const saved = localStorage.getItem(`esevai_apps_${userId}`);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        }
+      }
+      if (list.length === 0) {
+        const allSaved = localStorage.getItem('esevai_apps_all');
+        if (allSaved) {
+          const parsed = JSON.parse(allSaved);
+          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
+        }
+      }
+
+      // Merge any payments from esevai_all_payments that might be missing
+      const paymentsRaw = localStorage.getItem('esevai_all_payments');
+      if (paymentsRaw) {
+        const payments = JSON.parse(paymentsRaw);
+        if (Array.isArray(payments)) {
+          payments.forEach((p: any) => {
+            const exists = list.some(
+              (a) =>
+                (p.ticketNumber && a.tokenNumber === p.ticketNumber) ||
+                (p.utrNumber && a.utrNumber === p.utrNumber)
+            );
+            if (!exists && p.ticketNumber) {
+              list.push({
+                id: p._id || p.ticketNumber,
+                tokenNumber: p.ticketNumber,
+                serviceId: p.serviceId || 'esevai-service',
+                serviceName: p.serviceName || 'e-Sevai Service',
+                applicantName: p.applicantName || 'Citizen',
+                mobile: p.applicantPhone || '',
+                date: p.submittedAt ? new Date(p.submittedAt).toLocaleDateString() : new Date().toLocaleDateString(),
+                status: p.status === 'Verified & Approved' ? 'Completed' : (p.status === 'Rejected' ? 'Rejected' : 'Under Review'),
+                fee: p.amount || 0,
+                walletType: 'payments',
+                paidAmount: p.amount,
+                utrNumber: p.utrNumber,
+                upiIdUsed: p.upiIdUsed,
+                paymentScreenshot: p.paymentScreenshot,
+                paymentMethod: p.paymentMethod || 'UPI QR',
+                paymentStatus: p.status || 'Pending Verification',
+                remarks: p.adminRemarks || `Payment of ₹${p.amount} recorded with UTR: ${p.utrNumber}`,
+              });
+            }
+          });
+        }
+      }
+      return list;
     } catch {
       return [];
     }
+  };
+
+  // User-scoped applications with global history fallback:
+  const [applications, setApplications] = useState<ApplicationRecord[]>(() => {
+    return loadStoredApplications(user?._id);
   });
 
   // User-scoped transactions
@@ -185,7 +363,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     prevUserIdRef.current = currentUserId;
 
     if (!user?._id) {
-      setApplications([]);
+      setApplications(loadStoredApplications());
       setTransactions([]);
       setPaymentsWallet(799.0);
       setCardsWallet(79.0);
@@ -195,8 +373,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     try {
-      const savedApps = localStorage.getItem(`esevai_apps_${user._id}`);
-      setApplications(savedApps ? JSON.parse(savedApps) : []);
+      setApplications(loadStoredApplications(user._id));
 
       const savedTxns = localStorage.getItem(`esevai_txns_${user._id}`);
       setTransactions(savedTxns ? JSON.parse(savedTxns) : []);
@@ -236,6 +413,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error('Failed to reload user state:', err);
     }
   }, [currentUserId, user?._id, user?.username, user?.phoneNumber]);
+
+  // Keep applications synchronized across windows or when payments are verified
+  useEffect(() => {
+    const onStorageSync = () => {
+      setApplications(loadStoredApplications(user?._id));
+    };
+    window.addEventListener('storage', onStorageSync);
+    return () => window.removeEventListener('storage', onStorageSync);
+  }, [user?._id]);
 
   const openService = (service: ServiceItem) => {
     setSelectedService(service);
@@ -374,15 +560,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       date: `${now.toISOString().split('T')[0]} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
     };
 
+    const appTicket = (app.details?.ticketNumber as string) || tokenNumber;
+
+    if (app.utrNumber) {
+      paymentApi.submitPayment({
+        ticketNumber: appTicket,
+        serviceId: app.serviceId,
+        serviceName: app.serviceName,
+        category: (app.details?.categoryLabel as string) || 'General',
+        applicantName: app.applicantName,
+        applicantPhone: app.mobile,
+        amount: app.paidAmount || app.fee || 0,
+        utrNumber: app.utrNumber,
+        upiIdUsed: app.upiIdUsed || paymentSettings.upiId,
+        paymentScreenshot: app.paymentScreenshot,
+        paymentMethod: app.paymentMethod || 'UPI QR',
+        status: app.paymentStatus || 'Pending Verification',
+      });
+    }
+
     setApplications((prev) => {
       const nextApps = [newApp, ...prev];
-      if (user?._id) {
-        try {
+      try {
+        if (user?._id) {
           localStorage.setItem(`esevai_apps_${user._id}`, JSON.stringify(nextApps));
-        } catch {}
-      }
+        }
+        localStorage.setItem('esevai_apps_all', JSON.stringify(nextApps));
+      } catch {}
       return nextApps;
     });
+
+    // Always open the confirmation modal notifying that admin will approve soon and contact
+    setPaymentSuccessModalData(newApp);
+
     addNotification(
       'New Application Submitted',
       `Application for ${app.serviceName} submitted. Token: ${tokenNumber}`
@@ -456,6 +666,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setSelectedService,
         openService,
         closeService,
+        servicePrices,
+        getServicePrice,
+        updateServicePrice,
+        paymentSettings,
+        updatePaymentSettings,
+        openPaymentDialog,
+        paymentSuccessModalData,
+        setPaymentSuccessModalData,
         paymentsWallet,
         cardsWallet,
         deductWallet,
@@ -480,6 +698,34 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }}
     >
       {children}
+      {paymentDialogParams && (
+        <PaymentModal
+          isOpen={paymentDialogParams.isOpen}
+          onClose={() => setPaymentDialogParams(null)}
+          serviceName={paymentDialogParams.serviceName}
+          categoryLabel={paymentDialogParams.categoryLabel}
+          amount={paymentDialogParams.amount}
+          applicantName={paymentDialogParams.applicantName}
+          applicantPhone={paymentDialogParams.applicantPhone}
+          settings={paymentSettings}
+          onConfirmPayment={paymentDialogParams.onConfirmed}
+        />
+      )}
+      <PaymentSuccessModal
+        isOpen={Boolean(paymentSuccessModalData)}
+        onClose={() => setPaymentSuccessModalData(null)}
+        application={paymentSuccessModalData}
+        onViewHistory={() => {
+          setPaymentSuccessModalData(null);
+          closeService();
+          setActiveTab('service_history');
+        }}
+        onViewReceipt={() => {
+          const app = paymentSuccessModalData;
+          setPaymentSuccessModalData(null);
+          setReceiptModalData(app);
+        }}
+      />
     </AppContext.Provider>
   );
 };

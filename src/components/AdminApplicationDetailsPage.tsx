@@ -27,6 +27,8 @@ import {
   CheckCircle,
   Hash,
   Sprout,
+  QrCode,
+  XCircle,
 } from 'lucide-react';
 import { AdminQueue } from './AdminSidebar';
 import { aadhaarApi } from '../services/aadhaarApi';
@@ -36,6 +38,7 @@ import { rationApi } from '../services/rationApi';
 import { drivingApi } from '../services/drivingApi';
 import { vehicleApi } from '../services/vehicleApi';
 import { farmerApi } from '../services/farmerApi';
+import { paymentApi } from '../services/paymentApi';
 
 interface AdminApplicationDetailsPageProps {
   type: AdminQueue;
@@ -132,6 +135,49 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+
+  // Payment record linked to this application
+  const [paymentRecord, setPaymentRecord] = useState<any>(() => {
+    if (initialTicket.utrNumber) {
+      return {
+        utrNumber: initialTicket.utrNumber,
+        amount: initialTicket.paidAmount || initialTicket.fee || 0,
+        status: initialTicket.paymentStatus || 'Pending Verification',
+        paymentScreenshot: initialTicket.paymentScreenshot,
+        upiIdUsed: initialTicket.upiIdUsed || 'jjesper143@oksbi',
+        verifiedBy: initialTicket.paymentVerifiedBy,
+      };
+    }
+    try {
+      const stored = localStorage.getItem('esevai_all_payments');
+      if (stored) {
+        const list = JSON.parse(stored);
+        const match = list.find(
+          (p: any) =>
+            p.ticketNumber === (initialTicket.ticketNumber || initialTicket._id) ||
+            p.ticketNumber === initialTicket.tokenNumber
+        );
+        if (match) return match;
+      }
+    } catch {}
+    return null;
+  });
+
+  const handleApprovePayment = async () => {
+    const ticketId = ticket.ticketNumber || ticket.tokenNumber || ticket._id;
+    await paymentApi.verifyPayment(ticketId, 'Verified & Approved', 'Approved from dossier page');
+    setPaymentRecord((prev: any) => (prev ? { ...prev, status: 'Verified & Approved' } : null));
+    setFeedback({ type: 'success', message: 'Payment verified and approved successfully!' });
+  };
+
+  const handleRejectPayment = async () => {
+    const reason = window.prompt('Enter reason for payment rejection (e.g. UTR mismatch):');
+    if (!reason) return;
+    const ticketId = ticket.ticketNumber || ticket.tokenNumber || ticket._id;
+    await paymentApi.verifyPayment(ticketId, 'Rejected', reason);
+    setPaymentRecord((prev: any) => (prev ? { ...prev, status: 'Rejected', rejectionReason: reason } : null));
+    setFeedback({ type: 'error', message: `Payment marked as rejected: ${reason}` });
+  };
 
   const meta = QUEUE_METADATA[type] || {
     title: 'Application Record',
@@ -423,6 +469,125 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN: DETAILED DOSSIER (2 SPANS) */}
         <div className="lg:col-span-2 space-y-6">
+          {/* UPI PAYMENT & UTR VERIFICATION CARD */}
+          {paymentRecord && (
+            <div className="bg-white rounded-2xl border-2 border-emerald-500/40 p-5 sm:p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-emerald-100 text-emerald-800 rounded-xl">
+                    <QrCode className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                      <span>UPI Payment & UTR Verification</span>
+                      <span
+                        className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          paymentRecord.status === 'Verified & Approved'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                            : paymentRecord.status === 'Rejected'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                            : 'bg-amber-100 text-amber-800 border border-amber-300 animate-pulse'
+                        }`}
+                      >
+                        {paymentRecord.status}
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500">Citizen UPI QR Code Payment Reference</p>
+                  </div>
+                </div>
+
+                {/* Quick Approve / Reject action */}
+                <div className="flex items-center gap-2">
+                  {paymentRecord.status === 'Pending Verification' ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleRejectPayment}
+                        className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <XCircle className="w-3.5 h-3.5" />
+                        <span>Reject</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleApprovePayment}
+                        className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Approve Payment</span>
+                      </button>
+                    </>
+                  ) : paymentRecord.status === 'Verified & Approved' ? (
+                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1 bg-emerald-50 px-2.5 py-1 rounded-lg">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Payment Verified</span>
+                    </span>
+                  ) : (
+                    <span className="text-xs font-bold text-rose-700 flex items-center gap-1 bg-rose-50 px-2.5 py-1 rounded-lg">
+                      <XCircle className="w-4 h-4 text-rose-600" />
+                      <span>Payment Rejected</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                    Amount Paid
+                  </span>
+                  <div className="text-lg font-black text-emerald-700 mt-0.5">
+                    ₹{paymentRecord.amount || 0}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                    12-Digit UTR Ref Number
+                  </span>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <code className="text-xs font-mono font-black text-slate-900">
+                      {paymentRecord.utrNumber || 'N/A'}
+                    </code>
+                    {paymentRecord.utrNumber && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(paymentRecord.utrNumber, 'utr')}
+                        className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-700 cursor-pointer"
+                        title="Copy UTR"
+                      >
+                        {copiedText === 'utr' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">
+                    UPI ID Used
+                  </span>
+                  <div className="text-xs font-mono font-bold text-slate-800 mt-0.5 truncate">
+                    {paymentRecord.upiIdUsed || 'jjesper143@oksbi'}
+                  </div>
+                </div>
+              </div>
+
+              {paymentRecord.paymentScreenshot && (
+                <div className="pt-2">
+                  <span className="text-xs font-bold text-slate-600 block mb-1">
+                    Uploaded Payment Receipt Proof:
+                  </span>
+                  <img
+                    src={paymentRecord.paymentScreenshot}
+                    alt="Receipt Proof"
+                    className="w-32 h-32 object-cover rounded-xl border border-slate-200 cursor-pointer hover:opacity-90"
+                    onClick={() => window.open(paymentRecord.paymentScreenshot, '_blank')}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 1. CITIZEN / APPLICANT PROFILE CARD */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">

@@ -29,6 +29,7 @@ import {
   AlertTriangle,
 } from 'lucide-react';
 import { vehicleApi, VehicleRequest, VehicleStatsResponse } from '../services/vehicleApi';
+import { paymentApi } from '../services/paymentApi';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
 
@@ -239,6 +240,7 @@ const TN_RTO_OFFICES = [
 
 export const VehicleServicesView: React.FC = () => {
   const { user } = useAuth();
+  const { getServicePrice, openPaymentDialog, addApplication, setReceiptModalData } = useApp();
 
   // Search & Live Tracker State
   const [searchQuery, setSearchQuery] = useState('');
@@ -361,48 +363,105 @@ export const VehicleServicesView: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    setSubmitError('');
+    const fee = getServicePrice(activeModalService.id);
 
-    const res = await vehicleApi.submitRequest({
-      serviceType: activeModalService.serviceType,
-      vehicleNumber: formData.vehicleNumber.trim(),
-      chassisNumber: formData.chassisNumber.trim() || undefined,
-      engineNumber: formData.engineNumber.trim() || undefined,
-      vehicleClass: formData.vehicleClass,
-      makerModel: formData.makerModel.trim() || undefined,
-      fuelType: formData.fuelType,
-      ownerName: formData.ownerName.trim(),
-      ownerPhone: formData.ownerPhone.trim(),
-      ownerEmail: formData.ownerEmail.trim() || undefined,
-      aadhaarNumber: formData.aadhaarNumber.trim() || undefined,
-      rtoOffice: formData.rtoOffice,
-      insurancePolicyNumber: formData.insurancePolicyNumber.trim() || undefined,
-      insuranceCompany: formData.insuranceCompany.trim() || undefined,
-      insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
-      puccNumber: formData.puccNumber.trim() || undefined,
-      puccExpiryDate: formData.puccExpiryDate || undefined,
-      hypothecationBank: formData.hypothecationBank.trim() || undefined,
-      challanNumber: formData.challanNumber.trim() || undefined,
-      challanAmount: formData.challanAmount ? Number(formData.challanAmount) : undefined,
-      newOwnerName: formData.newOwnerName.trim() || undefined,
-      newOwnerPhone: formData.newOwnerPhone.trim() || undefined,
-      newAddress: formData.newAddress.trim() || undefined,
-      remarksOrNotes: formData.remarksOrNotes.trim() || undefined,
-      priority: formData.priority,
+    openPaymentDialog({
+      serviceName: activeModalService.name,
+      categoryLabel: 'VEHICLE SERVICES',
+      amount: fee,
+      applicantName: formData.ownerName.trim(),
+      applicantPhone: formData.ownerPhone.trim(),
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+        setSubmitError('');
+
+        const ticketNum = `VHN-${Date.now()}`;
+
+        // Immediately add application locally (opens confirmation modal instantly!)
+        addApplication({
+          serviceId: activeModalService.id,
+          serviceName: activeModalService.name,
+          applicantName: formData.ownerName.trim(),
+          mobile: formData.ownerPhone.trim(),
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            ...formData,
+            ticketNumber: ticketNum,
+          },
+          remarks: `Payment ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+
+        try {
+          const res = await vehicleApi.submitRequest({
+            serviceType: activeModalService.serviceType,
+            vehicleNumber: formData.vehicleNumber.trim(),
+            chassisNumber: formData.chassisNumber.trim() || undefined,
+            engineNumber: formData.engineNumber.trim() || undefined,
+            vehicleClass: formData.vehicleClass,
+            makerModel: formData.makerModel.trim() || undefined,
+            fuelType: formData.fuelType,
+            ownerName: formData.ownerName.trim(),
+            ownerPhone: formData.ownerPhone.trim(),
+            ownerEmail: formData.ownerEmail.trim() || undefined,
+            aadhaarNumber: formData.aadhaarNumber.trim() || undefined,
+            rtoOffice: formData.rtoOffice,
+            insurancePolicyNumber: formData.insurancePolicyNumber.trim() || undefined,
+            insuranceCompany: formData.insuranceCompany.trim() || undefined,
+            insuranceExpiryDate: formData.insuranceExpiryDate || undefined,
+            puccNumber: formData.puccNumber.trim() || undefined,
+            puccExpiryDate: formData.puccExpiryDate || undefined,
+            hypothecationBank: formData.hypothecationBank.trim() || undefined,
+            challanNumber: formData.challanNumber.trim() || undefined,
+            challanAmount: formData.challanAmount ? Number(formData.challanAmount) : undefined,
+            newOwnerName: formData.newOwnerName.trim() || undefined,
+            newOwnerPhone: formData.newOwnerPhone.trim() || undefined,
+            newAddress: formData.newAddress.trim() || undefined,
+            remarksOrNotes: formData.remarksOrNotes.trim() || undefined,
+            priority: formData.priority,
+          });
+
+          const finalTicket = res.success && res.data ? res.data.ticketNumber : ticketNum;
+
+          // Record payment
+          await paymentApi.submitPayment({
+            ticketNumber: finalTicket,
+            serviceId: activeModalService.id,
+            serviceName: activeModalService.name,
+            category: 'Vehicle',
+            applicantName: formData.ownerName.trim(),
+            applicantPhone: formData.ownerPhone.trim(),
+            amount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            status: 'Pending Verification',
+          });
+
+          if (res.success && res.data) {
+            setSubmitSuccess(res.data);
+            vehicleApi.getStats().then((sRes) => {
+              if (sRes.success && sRes.data) setStats(sRes.data);
+            });
+          }
+        } catch (e) {
+          console.warn('Backend sync in background:', e);
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
     });
-
-    setIsSubmitting(false);
-
-    if (res.success && res.data) {
-      setSubmitSuccess(res.data);
-      // Refresh stats in background
-      vehicleApi.getStats().then((sRes) => {
-        if (sRes.success && sRes.data) setStats(sRes.data);
-      });
-    } else {
-      setSubmitError(res.message || 'Failed to submit vehicle service request. Please try again.');
-    }
   };
 
   return (

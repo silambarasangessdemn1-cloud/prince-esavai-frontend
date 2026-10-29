@@ -82,7 +82,6 @@ export const DeathCertificateForm: React.FC = () => {
 
       confetti({ particleCount: 65, spread: 55 });
       setIsSubmitting(false);
-      setReceiptModalData(newApp);
     }, 500);
   };
 

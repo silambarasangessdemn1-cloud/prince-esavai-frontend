@@ -38,12 +38,12 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarOpen }
       style={{ fontFamily: "Calibri, 'Carlito', 'Segoe UI', Candara, system-ui, sans-serif" }}
     >
       {/* Top Banner Notice */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-emerald-100 text-xs font-semibold px-4 py-1.5 flex items-center justify-between">
-        <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap">
-          <span className="bg-emerald-500 text-white px-2 py-0.5 rounded text-[11px] font-black tracking-wider uppercase">
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-emerald-900 text-emerald-100 text-xs font-semibold px-3 sm:px-4 py-1.5 flex items-center justify-between min-w-0 w-full overflow-hidden">
+        <div className="flex items-center gap-2 overflow-hidden text-ellipsis whitespace-nowrap min-w-0">
+          <span className="bg-emerald-500 text-white px-1.5 sm:px-2 py-0.5 rounded text-[10px] sm:text-[11px] font-black tracking-wider uppercase shrink-0">
             LIVE PORTAL
           </span>
-          <span className="text-xs sm:text-sm">
+          <span className="text-[11px] sm:text-sm truncate">
             Tamil Nadu & All-India e-Governance Citizen Access Network • Gateway Active
           </span>
         </div>
@@ -55,9 +55,9 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarOpen }
       </div>
 
       {/* Main Header Bar */}
-      <div className="px-4 lg:px-6 py-2.5 flex items-center justify-between gap-3 lg:gap-6">
+      <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-2.5 flex items-center justify-between gap-2 sm:gap-3 lg:gap-6">
         {/* Left: Mobile hamburger & Logo */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           <button
             onClick={onToggleSidebar}
             className="lg:hidden p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-hidden"
@@ -71,12 +71,12 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarOpen }
               setActiveTab('dashboard');
               closeService();
             }}
-            className="flex items-center gap-3 text-left group focus:outline-hidden cursor-pointer"
+            className="flex items-center gap-2 sm:gap-3 text-left group focus:outline-hidden cursor-pointer"
           >
             <img
               src="/assets/aistudio/image_0c10b464.png"
               alt="Princess A to Z Business Logo"
-              className="h-11 sm:h-13 w-auto object-contain rounded drop-shadow-xs group-hover:scale-102 transition-transform"
+              className="h-8 sm:h-10 md:h-12 w-auto object-contain rounded drop-shadow-xs group-hover:scale-102 transition-transform"
             />
             <div className="hidden md:block pl-2.5 border-l border-slate-200">
               <div className="text-xs font-black uppercase tracking-wider text-slate-800">
@@ -90,20 +90,20 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarOpen }
         </div>
 
         {/* Center: Live Search for Services */}
-        <div className="flex-1 max-w-xl mx-2">
+        <div className="flex-1 max-w-xl mx-1 sm:mx-2 min-w-0">
           <div className="relative">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search 40+ services (Ration, Aadhaar, CAN, Voter, DL, RC)..."
-              className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-xl outline-hidden transition-all shadow-inner font-medium"
+              placeholder="Search services..."
+              className="w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-2.5 text-xs sm:text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-xl outline-hidden transition-all shadow-inner font-medium"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 hover:text-slate-600 font-bold"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600 font-bold"
               >
                 ✕
               </button>
@@ -112,24 +112,25 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarOpen }
         </div>
 
         {/* Right: Center Actions */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Track Applications Shortcut Button */}
           <button
             onClick={() => {
               setActiveTab('service_history');
               closeService();
             }}
-            className="flex items-center gap-1.5 px-3.5 py-2 bg-[#00a86b] hover:bg-[#008f5b] text-white rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs whitespace-nowrap"
+            className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-[#00a86b] hover:bg-[#008f5b] text-white rounded-xl text-xs sm:text-sm font-bold transition-colors cursor-pointer shadow-xs whitespace-nowrap"
           >
             <FileCheck2 className="w-4 h-4" />
-            <span>Track Applications</span>
+            <span className="hidden sm:inline">Track Applications</span>
+            <span className="sm:hidden text-xs">History</span>
           </button>
 
           {/* Notification Menu */}
           <div className="relative">
             <button
               onClick={() => setShowNotifMenu(!showNotifMenu)}
-              className="relative p-2.5 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
               aria-label="View notifications"
             >
               <Bell className="w-4 h-4" />
@@ -139,7 +140,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, isSidebarOpen }
             </button>
 
             {showNotifMenu && (
-              <div className="absolute right-0 mt-2 w-80 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-3">
+              <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-80 max-w-sm bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-3">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100">
                   <span className="text-xs font-bold text-slate-900">System Notifications</span>
                   <button

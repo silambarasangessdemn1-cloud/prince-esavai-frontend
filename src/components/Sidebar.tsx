@@ -43,13 +43,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     // Driving & Vehicle services placed last as requested:
     { id: 'driving_services', label: 'DRIVING SERVICES', icon: ShieldCheck },
     { id: 'vehicle_services', label: 'VEHICLE SERVICES', icon: Car },
-    // Administrative views:
-    
-    // { id: 'service_history', label: 'SERVICE HISTORY', icon: History },
+    // Administrative & Tracking views:
+    { id: 'service_history', label: 'SERVICE HISTORY', icon: History },
     { id: 'other_services', label: 'OTHER SERVICES', icon: Layers },
     { id: 'all_service_status', label: 'ALL SERVICE STATUS', icon: ListChecks },
-    { id: 'my_profile', label: 'MY PROFILE', icon: User },
-    
+    { id: 'profile', label: 'MY PROFILE', icon: User },
   ];
 
   const handleNavClick = (id: string) => {

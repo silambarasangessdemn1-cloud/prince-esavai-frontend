@@ -46,6 +46,8 @@ export interface ServiceCategory {
 
 export type ApplicationStatus = 'Completed' | 'In Process' | 'Under Review' | 'Rejected';
 
+export type PaymentStatus = 'Pending Verification' | 'Verified & Approved' | 'Rejected' | 'Exempted';
+
 export interface ApplicationRecord {
   id: string;
   tokenNumber: string;
@@ -60,6 +62,49 @@ export interface ApplicationRecord {
   details: Record<string, any>;
   documents?: { name: string; size: string }[];
   remarks?: string;
+
+  // Payment & UTR Verification Details
+  paymentStatus?: PaymentStatus;
+  utrNumber?: string;
+  paidAmount?: number;
+  paymentMethod?: string;
+  upiIdUsed?: string;
+  paymentScreenshot?: string;
+  paymentDate?: string;
+  paymentVerifiedBy?: string;
+  paymentVerifiedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface PaymentSubmission {
+  ticketNumber: string;
+  serviceId: string;
+  serviceName: string;
+  category?: string;
+  applicantName: string;
+  applicantPhone: string;
+  amount: number;
+  utrNumber: string;
+  upiIdUsed?: string;
+  paymentScreenshot?: string;
+  paymentMethod?: string;
+  status?: PaymentStatus;
+}
+
+export interface PricingItem {
+  serviceId: string;
+  serviceName: string;
+  category: string;
+  price: number;
+  isActive?: boolean;
+  processingTime?: string;
+}
+
+export interface PaymentGatewaySettings {
+  upiId: string;
+  payeeName: string;
+  qrCodeImage: string;
+  isPaymentRequired: boolean;
 }
 
 export interface TransactionRecord {

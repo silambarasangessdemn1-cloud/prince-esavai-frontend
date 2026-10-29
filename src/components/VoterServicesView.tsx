@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { ServiceIcon } from './ServiceIcon';
 import { voterApi, VoterRequest, VoterStatsResponse } from '../services/voterApi';
+import { paymentApi } from '../services/paymentApi';
 import {
   Vote,
   Search,
@@ -155,7 +156,7 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 export const VoterServicesView: React.FC = () => {
-  const { setActiveTab } = useApp();
+  const { setActiveTab, getServicePrice, openPaymentDialog, addApplication, setReceiptModalData } = useApp();
 
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -307,42 +308,92 @@ export const VoterServicesView: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    const res = await voterApi.submitRequest({
-      serviceType: selectedService.backendServiceType,
-      applicantName: formData.applicantName.trim(),
-      relativeName: formData.relativeName.trim(),
-      relationType: formData.relationType,
-      dateOfBirth: formData.dateOfBirth.trim(),
-      gender: formData.gender,
-      applicantPhone: cleanPhone,
-      applicantEmail: formData.applicantEmail.trim(),
-      aadhaarNumber: formData.aadhaarNumber.trim() || undefined,
-      epicNumber: formData.epicNumber.trim().toUpperCase() || undefined,
-      state: formData.state,
-      district: formData.district,
-      assemblyConstituency: formData.assemblyConstituency.trim(),
-      pollingStation: formData.pollingStation.trim(),
-      correctionDetails: formData.correctionDetails.trim(),
-      newAddress: formData.newAddress.trim(),
-      remarksOrNotes: formData.remarksOrNotes.trim(),
-      priority: formData.priority,
-    });
-    setIsSubmitting(false);
+    const fee = getServicePrice(selectedService.id);
 
-    if (res.success && res.data) {
-      confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
-      setSubmitSuccess(res.data.request.ticketNumber);
-      loadRequestsAndStats();
-    } else if (res.errors && res.errors.length > 0) {
-      const errMap: Record<string, string> = {};
-      res.errors.forEach((err) => {
-        errMap[err.field] = err.message;
-      });
-      setFieldErrors(errMap);
-    } else {
-      setFieldErrors({ general: res.message || 'Submission failed. Please verify the entered information.' });
-    }
+    openPaymentDialog({
+      serviceName: selectedService.name,
+      categoryLabel: 'VOTER SERVICES',
+      amount: fee,
+      applicantName: formData.applicantName.trim(),
+      applicantPhone: cleanPhone,
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+        const ticketNum = `VTR-${Date.now()}`;
+
+        // Add application locally immediately (opens confirmation modal instantly!)
+        addApplication({
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          applicantName: formData.applicantName.trim(),
+          mobile: cleanPhone,
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            ...formData,
+            ticketNumber: ticketNum,
+          },
+          remarks: `Payment of ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+        setSubmitSuccess(ticketNum);
+
+        try {
+          const res = await voterApi.submitRequest({
+            serviceType: selectedService.backendServiceType,
+            applicantName: formData.applicantName.trim(),
+            relativeName: formData.relativeName.trim(),
+            relationType: formData.relationType,
+            dateOfBirth: formData.dateOfBirth.trim(),
+            gender: formData.gender,
+            applicantPhone: cleanPhone,
+            applicantEmail: formData.applicantEmail.trim(),
+            aadhaarNumber: formData.aadhaarNumber.trim() || undefined,
+            epicNumber: formData.epicNumber.trim().toUpperCase() || undefined,
+            state: formData.state,
+            district: formData.district,
+            assemblyConstituency: formData.assemblyConstituency.trim(),
+            pollingStation: formData.pollingStation.trim(),
+            correctionDetails: formData.correctionDetails.trim(),
+            newAddress: formData.newAddress.trim(),
+            remarksOrNotes: formData.remarksOrNotes.trim(),
+            priority: formData.priority,
+          });
+
+          const finalTicket = res.success && res.data ? res.data.request.ticketNumber : ticketNum;
+
+          // Record payment
+          await paymentApi.submitPayment({
+            ticketNumber: finalTicket,
+            serviceId: selectedService.id,
+            serviceName: selectedService.name,
+            category: 'Voter',
+            applicantName: formData.applicantName.trim(),
+            applicantPhone: cleanPhone,
+            amount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            status: 'Pending Verification',
+          });
+
+          loadRequestsAndStats();
+        } catch (e) {
+          console.warn('Backend sync in background:', e);
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   // Lookup Handler

@@ -13,15 +13,15 @@ export const ReceiptModal: React.FC = () => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in duration-150"
       style={{ fontFamily: "Calibri, 'Carlito', 'Segoe UI', Candara, system-ui, sans-serif" }}
     >
-      <div className="bg-white w-full max-w-xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-xl rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
         {/* Modal Top Bar */}
-        <div className="px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <div className="px-4 sm:px-5 py-3 sm:py-3.5 bg-slate-900 text-white flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-            <span className="font-bold text-base tracking-tight">Official Acknowledgment Receipt</span>
+            <span className="font-bold text-sm sm:text-base tracking-tight">Official Acknowledgment Receipt</span>
           </div>
           <button
             onClick={() => setReceiptModalData(null)}
@@ -32,8 +32,8 @@ export const ReceiptModal: React.FC = () => {
         </div>
 
         {/* Printable Receipt Paper */}
-        <div className="p-6 overflow-y-auto" id="printable-slip">
-          <div className="border-2 border-slate-800 rounded-xl p-5 space-y-4 bg-white text-slate-900">
+        <div className="p-3 sm:p-6 overflow-y-auto" id="printable-slip">
+          <div className="border-2 border-slate-800 rounded-xl p-3 sm:p-5 space-y-3 sm:space-y-4 bg-white text-slate-900">
             {/* Gov & CSC Header */}
             <div className="text-center pb-3 border-b-2 border-slate-800">
               <div className="text-xs font-bold tracking-widest uppercase text-slate-600 mb-1">
@@ -104,6 +104,45 @@ export const ReceiptModal: React.FC = () => {
                 </span>
               </div>
 
+              {/* UPI QR Payment Details Strip */}
+              {receiptModalData.utrNumber && (
+                <div className="bg-emerald-50/70 border border-emerald-300 rounded-xl p-3 space-y-1.5 my-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase text-emerald-900 tracking-wider">
+                      UPI QR Payment Verification
+                    </span>
+                    <span
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                        receiptModalData.paymentStatus === 'Verified & Approved'
+                          ? 'bg-emerald-600 text-white'
+                          : receiptModalData.paymentStatus === 'Rejected'
+                          ? 'bg-rose-600 text-white'
+                          : 'bg-amber-500 text-white animate-pulse'
+                      }`}
+                    >
+                      {receiptModalData.paymentStatus || 'Pending Verification'}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold">Fee Amount</span>
+                      <span className="text-sm font-black text-emerald-800">
+                        ₹{receiptModalData.paidAmount || receiptModalData.fee || 0}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px] uppercase font-bold">12-Digit UTR Ref</span>
+                      <span className="font-mono font-black text-xs text-slate-900">
+                        {receiptModalData.utrNumber}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic pt-0.5">
+                    * Admin verification of UTR is underway. Official receipt will be updated upon approval.
+                  </p>
+                </div>
+              )}
+
               {receiptModalData.details && (
                 <div className="pt-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-200 space-y-1">
                   <span className="font-black text-slate-700 block uppercase text-xs">
@@ -154,16 +193,16 @@ export const ReceiptModal: React.FC = () => {
         </div>
 
         {/* Modal Actions */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-end gap-3">
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3">
           <button
             onClick={() => setReceiptModalData(null)}
-            className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-sm font-bold rounded-lg cursor-pointer"
+            className="w-full sm:w-auto px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs sm:text-sm font-bold rounded-lg cursor-pointer text-center"
           >
             Close
           </button>
           <button
             onClick={handlePrint}
-            className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-black rounded-lg cursor-pointer flex items-center gap-2 shadow-sm"
+            className="w-full sm:w-auto px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-black rounded-lg cursor-pointer flex items-center justify-center gap-2 shadow-sm"
           >
             <Printer className="w-4 h-4" />
             <span>Print Customer Slip (Ctrl+P)</span>

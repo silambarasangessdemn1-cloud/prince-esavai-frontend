@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { ServiceIcon } from './ServiceIcon';
 import { panApi, PanRequest, PanStatsResponse } from '../services/panApi';
+import { paymentApi } from '../services/paymentApi';
 import {
   CreditCard,
   Search,
@@ -156,7 +157,7 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 export const PanServicesView: React.FC = () => {
-  const { setActiveTab } = useApp();
+  const { setActiveTab, getServicePrice, openPaymentDialog, addApplication, setReceiptModalData } = useApp();
 
   // Search and Category Filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -299,37 +300,87 @@ export const PanServicesView: React.FC = () => {
       }
     }
 
-    setIsSubmitting(true);
-    const res = await panApi.submitRequest({
-      serviceType: selectedService.backendServiceType,
-      applicantName: formData.applicantName.trim(),
-      fatherName: formData.fatherName.trim(),
-      dateOfBirth: formData.dateOfBirth.trim(),
-      gender: formData.gender,
-      applicantPhone: cleanPhone,
-      applicantEmail: formData.applicantEmail.trim(),
-      aadhaarNumber: cleanAadhaar,
-      panNumber: formData.panNumber.trim().toUpperCase() || undefined,
-      deliveryMode: formData.deliveryMode,
-      correctionDetails: formData.correctionDetails.trim(),
-      instructions: formData.instructions.trim(),
-      priority: formData.priority,
-    });
-    setIsSubmitting(false);
+    const fee = getServicePrice(selectedService.id);
 
-    if (res.success && res.data) {
-      confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
-      setSubmitSuccess(res.data.request.ticketNumber);
-      loadRequestsAndStats();
-    } else if (res.errors && res.errors.length > 0) {
-      const errMap: Record<string, string> = {};
-      res.errors.forEach((err) => {
-        errMap[err.field] = err.message;
-      });
-      setFieldErrors(errMap);
-    } else {
-      setFieldErrors({ general: res.message || 'Submission failed. Please verify the entered details.' });
-    }
+    openPaymentDialog({
+      serviceName: selectedService.name,
+      categoryLabel: 'PAN SERVICES',
+      amount: fee,
+      applicantName: formData.applicantName.trim(),
+      applicantPhone: cleanPhone,
+      onConfirmed: async (paymentDetails) => {
+        setIsSubmitting(true);
+        const ticketNum = `PAN-${Date.now()}`;
+
+        // Add application locally immediately (opens confirmation modal instantly!)
+        addApplication({
+          serviceId: selectedService.id,
+          serviceName: selectedService.name,
+          applicantName: formData.applicantName.trim(),
+          mobile: cleanPhone,
+          status: 'Under Review',
+          fee,
+          walletType: 'payments',
+          details: {
+            ...formData,
+            ticketNumber: ticketNum,
+          },
+          remarks: `Payment ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          paidAmount: paymentDetails.paidAmount,
+          utrNumber: paymentDetails.utrNumber,
+          upiIdUsed: paymentDetails.upiIdUsed,
+          paymentScreenshot: paymentDetails.paymentScreenshot,
+          paymentMethod: 'UPI QR',
+          paymentStatus: 'Pending Verification',
+          paymentDate: new Date().toISOString(),
+        });
+
+        confetti({ particleCount: 75, spread: 60, origin: { y: 0.6 } });
+        setSubmitSuccess(ticketNum);
+
+        try {
+          const res = await panApi.submitRequest({
+            serviceType: selectedService.backendServiceType,
+            applicantName: formData.applicantName.trim(),
+            fatherName: formData.fatherName.trim(),
+            dateOfBirth: formData.dateOfBirth.trim(),
+            gender: formData.gender,
+            applicantPhone: cleanPhone,
+            applicantEmail: formData.applicantEmail.trim(),
+            aadhaarNumber: cleanAadhaar,
+            panNumber: formData.panNumber.trim().toUpperCase() || undefined,
+            deliveryMode: formData.deliveryMode,
+            correctionDetails: formData.correctionDetails.trim(),
+            instructions: formData.instructions.trim(),
+            priority: formData.priority,
+          });
+
+          const finalTicket = res.success && res.data ? res.data.request.ticketNumber : ticketNum;
+
+          // Record payment
+          await paymentApi.submitPayment({
+            ticketNumber: finalTicket,
+            serviceId: selectedService.id,
+            serviceName: selectedService.name,
+            category: 'PAN',
+            applicantName: formData.applicantName.trim(),
+            applicantPhone: cleanPhone,
+            amount: paymentDetails.paidAmount,
+            utrNumber: paymentDetails.utrNumber,
+            upiIdUsed: paymentDetails.upiIdUsed,
+            paymentScreenshot: paymentDetails.paymentScreenshot,
+            paymentMethod: 'UPI QR',
+            status: 'Pending Verification',
+          });
+
+          loadRequestsAndStats();
+        } catch (e) {
+          console.warn('Backend sync in background:', e);
+        } finally {
+          setIsSubmitting(false);
+        }
+      },
+    });
   };
 
   // Lookup by PAN or Aadhaar

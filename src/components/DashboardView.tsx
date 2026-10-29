@@ -184,6 +184,8 @@ interface ServiceCardProps {
 }
 
 export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) => {
+  const { getServicePrice } = useApp();
+  const fee = getServicePrice(service.id);
   const isBlueBtn = service.actionColor === 'blue';
 
   return (
@@ -203,12 +205,19 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ service, onClick }) =>
         }
       />
 
-      {/* Optional "NEW" badge on top right */}
-      {service.isNew && (
-        <span className="absolute top-1.5 right-1.5 bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter shadow-xs animate-pulse">
-          NEW
-        </span>
-      )}
+      {/* Top Right Fee & New Badges */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+        {fee > 0 && (
+          <span className="bg-emerald-50/90 text-emerald-800 border border-emerald-200 text-[10px] font-black px-1.5 py-0.5 rounded shadow-2xs font-mono">
+            ₹{fee}
+          </span>
+        )}
+        {service.isNew && (
+          <span className="bg-rose-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-tighter shadow-xs animate-pulse">
+            NEW
+          </span>
+        )}
+      </div>
 
       {/* Center Icon & Enlarged Title (No fee displayed) */}
       <div className="pt-4 px-2.5 pb-2.5 flex flex-col items-center text-center flex-1 justify-center">

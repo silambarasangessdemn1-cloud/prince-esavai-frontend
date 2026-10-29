@@ -7,7 +7,10 @@ import { rationApi, RationRequest, RationStatsResponse } from '../services/ratio
 import { drivingApi, DrivingRequest, DrivingStatsResponse } from '../services/drivingApi';
 import { vehicleApi, VehicleRequest, VehicleStatsResponse } from '../services/vehicleApi';
 import { farmerApi, FarmerRequest, FarmerStatsResponse } from '../services/farmerApi';
+import { paymentApi } from '../services/paymentApi';
 import { AdminApplicationDetailsPage } from './AdminApplicationDetailsPage';
+import { AdminPricingView } from './AdminPricingView';
+import { AdminPaymentsView } from './AdminPaymentsView';
 import {
   ShieldCheck,
   Search,
@@ -369,7 +372,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   // Load all queue totals to keep sidebar badges 100% synchronized
   const loadAllQueueCounts = useCallback(async () => {
     try {
-      const [aStats, pStats, vStats, rStats, dStats, vehStats, farmStats] = await Promise.all([
+      const [aStats, pStats, vStats, rStats, dStats, vehStats, farmStats, payData] = await Promise.all([
         aadhaarApi.getStats({ scope: 'all' }),
         panApi.getStats({ scope: 'all' }),
         voterApi.getStats({ scope: 'all' }),
@@ -377,6 +380,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         drivingApi.getStats({ scope: 'all' }),
         vehicleApi.getStats({ scope: 'all' }),
         farmerApi.getStats('all'),
+        paymentApi.getAllPayments(),
       ]);
 
       const counts: AdminQueueCounts = {
@@ -387,6 +391,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         driving: dStats.success && dStats.data ? dStats.data.total : 0,
         vehicle: vehStats.success && vehStats.data ? vehStats.data.total : 0,
         farmer: farmStats.success && farmStats.data ? farmStats.data.total : 0,
+        payments: payData?.stats?.pending || 0,
+        pricing: 44,
         total: 0,
       };
       counts.total =
@@ -778,6 +784,16 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         }
       />
     );
+  }
+
+  // Dedicated Service Pricing Portal View
+  if (activeQueue === 'pricing') {
+    return <AdminPricingView />;
+  }
+
+  // Dedicated Payment & UTR Verifications View
+  if (activeQueue === 'payments') {
+    return <AdminPaymentsView onRefreshCounts={loadAllQueueCounts} />;
   }
 
   return (
