@@ -116,13 +116,13 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: Car,
       count: counts.vehicle,
     },
-    {
-      id: 'farmer',
-      label: 'Farmer Services',
-      sublabel: 'Uzhavan / Land Records',
-      icon: Sprout,
-      count: counts.farmer,
-    },
+    // {
+    //   id: 'farmer',
+    //   label: 'Farmer Services',
+    //   sublabel: 'Uzhavan / Land Records',
+    //   icon: Sprout,
+    //   count: counts.farmer,
+    // },
   ];
 
   const statusItems: Array<{

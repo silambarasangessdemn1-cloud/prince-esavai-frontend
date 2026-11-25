@@ -381,14 +381,16 @@ export const AdminPricingView: React.FC = () => {
         {/* Category Filter Pills */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 text-xs font-semibold">
           {[
-            { id: 'all', label: 'All Services' },
-            { id: 'ration', label: 'Ration' },
-            { id: 'aadhaar', label: 'Aadhaar' },
-            { id: 'voter', label: 'Voter' },
-            { id: 'pan', label: 'PAN Card' },
-            { id: 'farmer', label: 'Farmer' },
-            { id: 'driving', label: 'Driving' },
-            { id: 'vehicle', label: 'Vehicle' },
+            { id: 'all', label: `All Services (${ALL_SERVICES.length})` },
+            { id: 'ration', label: `Ration (${ALL_SERVICES.filter(s => s.category === 'ration').length})` },
+            { id: 'can', label: `CAN Services (${ALL_SERVICES.filter(s => s.category === 'can').length})` },
+            { id: 'aadhaar', label: `Aadhaar (${ALL_SERVICES.filter(s => s.category === 'aadhaar').length})` },
+            { id: 'pan', label: `PAN Card (${ALL_SERVICES.filter(s => s.category === 'pan').length})` },
+            { id: 'voter', label: `Voter (${ALL_SERVICES.filter(s => s.category === 'voter').length})` },
+            { id: 'driving', label: `Driving (${ALL_SERVICES.filter(s => s.category === 'driving').length})` },
+            { id: 'vehicle', label: `Vehicle (${ALL_SERVICES.filter(s => s.category === 'vehicle').length})` },
+            { id: 'farmer', label: `Farmer (${ALL_SERVICES.filter(s => s.category === 'farmer').length})` },
+            { id: 'certificate', label: `Certificates & PVC (${ALL_SERVICES.filter(s => s.category === 'certificate').length})` },
           ].map((cat) => (
             <button
               key={cat.id}
@@ -408,7 +410,7 @@ export const AdminPricingView: React.FC = () => {
         <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100">
           <div className="bg-slate-50 px-4 py-2.5 text-[11px] font-bold text-slate-500 uppercase tracking-wider grid grid-cols-12 gap-3 items-center">
             <div className="col-span-6 sm:col-span-5">Service Name & Category</div>
-            <div className="hidden sm:block col-span-3">Turnaround Time</div>
+            <div className="hidden sm:block col-span-3">Turnaround Time & Subtitle</div>
             <div className="col-span-4 sm:col-span-3 text-right">Fee (₹ INR)</div>
             <div className="col-span-2 sm:col-span-1 text-right">Action</div>
           </div>
@@ -429,15 +431,27 @@ export const AdminPricingView: React.FC = () => {
                     <span className="text-xs sm:text-sm font-bold text-slate-900 block truncate">
                       {svc.name}
                     </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                      {svc.categoryLabel}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">
+                        {svc.categoryLabel}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-400">
+                        {svc.id}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
-                {/* Turnaround Time */}
-                <div className="hidden sm:block col-span-3 text-xs text-slate-500 font-medium truncate">
-                  {svc.processingTime || '1 Working Day'}
+                {/* Turnaround Time & Subtitle */}
+                <div className="hidden sm:block col-span-3 min-w-0">
+                  <span className="text-xs text-slate-700 font-bold block">
+                    {svc.processingTime || '1-2 Working Days'}
+                  </span>
+                  {svc.subtitle && (
+                    <span className="text-[11px] text-slate-400 truncate block">
+                      {svc.subtitle}
+                    </span>
+                  )}
                 </div>
 
                 {/* Price Input & Quick Adjusters */}

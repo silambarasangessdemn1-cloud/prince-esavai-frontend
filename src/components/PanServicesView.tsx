@@ -922,9 +922,14 @@ export const PanServicesView: React.FC = () => {
                   <h3 className="font-black text-base sm:text-lg text-white leading-tight">
                     {selectedService.name}
                   </h3>
-                  <p className="text-xs text-emerald-200 font-medium">
-                    {selectedService.backendServiceType} • Online Application Gateway
-                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <p className="text-xs text-emerald-200 font-medium">
+                      {selectedService.backendServiceType} • Online Application Gateway
+                    </p>
+                    <span className="bg-white/20 text-white border border-white/30 text-[11px] font-black px-2 py-0.5 rounded-full">
+                      Fee: ₹{getServicePrice(selectedService.id)}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -1157,24 +1162,14 @@ export const PanServicesView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Priority */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Processing Priority</label>
-                    <div className="flex gap-2">
-                      {['Low', 'Medium', 'High', 'Urgent'].map((lvl) => (
-                        <button
-                          key={lvl}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, priority: lvl })}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                            formData.priority === lvl
-                              ? 'bg-[#15803d] text-white border-[#15803d] shadow-xs'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {lvl}
-                        </button>
-                      ))}
+                  {/* Service Fee Summary Box */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-950 block">Service Fee / சேவைக் கட்டணம்</span>
+                      <span className="text-[11px] text-emerald-700">Official processing fee via UPI QR</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-black text-emerald-900">₹{getServicePrice(selectedService.id)}</span>
                     </div>
                   </div>
 
@@ -1200,7 +1195,7 @@ export const PanServicesView: React.FC = () => {
                       ) : (
                         <>
                           <Send className="w-4 h-4" />
-                          <span>Submit Application</span>
+                          <span>Pay ₹{getServicePrice(selectedService.id)} & Submit</span>
                         </>
                       )}
                     </button>

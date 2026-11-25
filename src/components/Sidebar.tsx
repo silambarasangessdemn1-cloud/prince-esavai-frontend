@@ -34,12 +34,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const navItems = [
     { id: 'dashboard', label: 'DASHBOARD', icon: LayoutGrid },
     { id: 'ration_services', label: 'RATION SERVICES', icon: Store },
+    { id: 'can_services', label: 'CAN SERVICES', icon: FileEdit },
     { id: 'aadhaar_corrections', label: 'AADHAAR CORR.', icon: Fingerprint },
-    // { id: 'can_services', label: 'CAN EDIT SERVICES', icon: FileEdit },
     { id: 'voter_services', label: 'VOTER SERVICES', icon: Vote },
     { id: 'pan_services', label: 'PAN SERVICES', icon: CreditCard },
     // { id: 'pvc_services', label: 'PVC CARD PRINT', icon: Printer },
-    { id: 'farmer_services', label: 'FARMER SERVICES', icon: Sprout },
+    // { id: 'farmer_services', label: 'FARMER SERVICES', icon: Sprout },
     // Driving & Vehicle services placed last as requested:
     { id: 'driving_services', label: 'DRIVING SERVICES', icon: ShieldCheck },
     { id: 'vehicle_services', label: 'VEHICLE SERVICES', icon: Car },

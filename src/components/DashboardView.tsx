@@ -12,6 +12,8 @@ export const DashboardView: React.FC = () => {
   const handleServiceClick = (service: ServiceItem) => {
     if (service.category === 'ration') {
       setActiveTab('ration_services');
+    } else if (service.category === 'can') {
+      setActiveTab('can_services');
     } else if (service.category === 'aadhaar') {
       setActiveTab('aadhaar_corrections');
     } else if (service.category === 'voter') {
@@ -32,6 +34,7 @@ export const DashboardView: React.FC = () => {
   // Filter based on search query or category selected in sidebar or quick tabs
   const filteredServices = ALL_SERVICES.filter((service) => {
     if (activeTab === 'ration_services' && service.category !== 'ration') return false;
+    if (activeTab === 'can_services' && service.category !== 'can') return false;
     if (activeTab === 'aadhaar_corrections' && service.category !== 'aadhaar') return false;
     if (activeTab === 'voter_services' && service.category !== 'voter') return false;
     if (activeTab === 'pan_services' && service.category !== 'pan') return false;
@@ -67,6 +70,7 @@ export const DashboardView: React.FC = () => {
           {[
             { id: 'all', label: 'All Services' },
             { id: 'ration', label: 'Ration Services' },
+            { id: 'can', label: 'CAN Services' },
             { id: 'aadhaar', label: 'Aadhaar Services' },
             { id: 'voter', label: 'Voter Services' },
             { id: 'pan', label: 'PAN Services' },
@@ -145,6 +149,7 @@ export const DashboardView: React.FC = () => {
               <div
                 onClick={() => {
                   if (category.id === 'ration') setActiveTab('ration_services');
+                  else if (category.id === 'can') setActiveTab('can_services');
                   else if (category.id === 'aadhaar') setActiveTab('aadhaar_corrections');
                   else if (category.id === 'voter') setActiveTab('voter_services');
                   else if (category.id === 'pan') setActiveTab('pan_services');

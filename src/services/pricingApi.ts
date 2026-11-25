@@ -9,32 +9,58 @@ export const DEFAULT_PAYMENT_SETTINGS: PaymentGatewaySettings = {
 };
 
 export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
-  // Ration Services
+  // ── 1. Ration Services ──────────────────────────────
+  'add-family-member': 60,
+  'remove-family-member': 60,
   'ration-family-head': 60,
+  'address-fps-change': 60,
   'ration-mobile-link': 50,
+  'name-correction': 60,
+  'dob-correction': 60,
+  'address-correction': 60,
+  'photo-change': 60,
+  'smartcard-number-missing': 50,
   'ration-qr-code': 40,
+  'smartcard-pdf-green': 50,
   'ration-smartcard-instant': 50,
   'ration-member-add': 60,
   'ration-address-change': 60,
 
-  // Aadhaar Services
+  // ── 2. CAN Services ─────────────────────────────────
+  'can-saved-app-remove': 50,
+  'can-return-app-remove': 50,
+  'can-certificate-find': 60,
+  'can-legal-heir-find': 70,
+  'can-deleted': 60,
+  'can-mobile-link': 50,
+  'can-registration': 60,
+
+  // ── 3. Aadhaar Services ─────────────────────────────
+  'mobile-no-update': 50,
+  'address-update': 60,
+  'physical-card': 70,
+  're-kyc': 50,
+  'name-dob-correction': 60,
+  'biometric-update': 100,
+  'bank-seeding': 50,
+  'photo-update': 60,
+  'aadhaar-issue': 60,
   'aadhaar-mobile-link': 50,
   'aadhaar-address-update': 60,
   'aadhaar-name-correction': 60,
   'aadhaar-dob-correction': 60,
   'aadhaar-biometric-update': 100,
   'aadhaar-doc-update': 50,
-  'aadhaar-issue': 60,
 
-  // Voter Services
-  'voter-form-6': 50,
-  'voter-form-8-correction': 50,
-  'voter-form-8-address': 50,
-  'voter-e-epic-download': 40,
-  'voter-link-mobile': 40,
-  'voter-electoral-search': 30,
-
-  // PAN Services
+  // ── 4. PAN Services ─────────────────────────────────
+  'new-pan-form-49a': 107,
+  'pan-correction-changes': 110,
+  'reprint-physical-pan': 100,
+  'minor-to-major-pan': 110,
+  'instant-epan-service': 60,
+  'aadhaar-pan-linking': 50,
+  'find-lost-pan': 60,
+  'pvc-plastic-card-order': 80,
   'pan-form-49a': 107,
   'pan-csf-correction': 110,
   'pan-instant-epan': 60,
@@ -42,23 +68,48 @@ export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
   'pan-minor-to-major': 110,
   'pan-duplicate-reprint': 100,
 
-  // Farmer Services
-  'farmer-pm-kisan': 50,
-  'farmer-fmb-sketch': 60,
-  'farmer-crop-insurance': 80,
-  'farmer-drip-irrigation': 100,
-  'farmer-machinery-subsidy': 100,
-  'farmer-uzhavar-sandhai': 40,
-  'farmer-soil-health-card': 50,
+  // ── 5. Voter Services ───────────────────────────────
+  'form-6-new-voter': 50,
+  'form-8-correction': 50,
+  'form-8-replacement': 50,
+  'form-8-shifting': 50,
+  'form-6b-aadhaar-link': 40,
+  'download-eepic': 40,
+  'search-electoral-roll': 30,
+  'form-7-deletion': 50,
+  'voter-form-6': 50,
+  'voter-form-8-correction': 50,
+  'voter-form-8-address': 50,
+  'voter-e-epic-download': 40,
+  'voter-link-mobile': 40,
+  'voter-electoral-search': 30,
 
-  // Driving Services
+  // ── 6. Driving Services ─────────────────────────────
+  'learner-license-ll': 150,
+  'permanent-dl-apply': 200,
+  'dl-renewal-expiry': 120,
+  'duplicate-dl-reissue': 100,
+  'change-address-dl': 80,
+  'link-mobile-dl': 50,
+  'download-digital-dl-pvc': 60,
+  'find-lost-dl-number': 70,
   'driving-dl-application': 150,
   'driving-dl-renewal': 120,
   'driving-duplicate-dl': 100,
   'driving-address-change': 80,
   'driving-idp': 250,
 
-  // Vehicle Services
+  // ── 7. Vehicle Services ─────────────────────────────
+  'veh-rc-extract': 60,
+  'veh-insurance': 40,
+  'veh-pucc-emission': 50,
+  'veh-rc-smartcard': 60,
+  'veh-mobile-link': 50,
+  'veh-traffic-challan': 50,
+  'veh-rc-transfer': 200,
+  'veh-duplicate-rc': 150,
+  'veh-address-change': 80,
+  'veh-hypothecation': 100,
   'vehicle-rc-extract': 60,
   'vehicle-insurance-check': 40,
   'vehicle-pucc-emission': 50,
@@ -68,11 +119,32 @@ export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
   'vehicle-ownership-transfer': 200,
   'vehicle-duplicate-rc': 150,
 
-  // Other common forms
-  'can-registration': 60,
+  // ── 8. Farmer Services ──────────────────────────────
+  'pm-kisan-reg': 50,
+  'patta-chitta-extract': 60,
+  'fmb-sketch-copy': 60,
+  'crop-insurance-pmfby': 80,
+  'micro-irrigation-subsidy': 100,
+  'farm-machinery-tractor': 100,
+  'uzhavar-sandhai-pass': 40,
+  'soil-health-card': 50,
+  'subsidized-seeds-depot': 50,
+  'farmer-pm-kisan': 50,
+  'farmer-fmb-sketch': 60,
+  'farmer-crop-insurance': 80,
+  'farmer-drip-irrigation': 100,
+  'farmer-machinery-subsidy': 100,
+  'farmer-uzhavar-sandhai': 40,
+  'farmer-soil-health-card': 50,
+
+  // ── 9. Certificates & PVC ───────────────────────────
+  'pvc-maker': 80,
   'birth-certificate': 60,
   'death-certificate': 60,
-  'pvc-maker': 80,
+  'income-certificate': 60,
+  'community-certificate': 60,
+  'nativity-certificate': 60,
+  'first-graduate-certificate': 60,
 };
 
 const BASE = API_ENDPOINTS.pricing;

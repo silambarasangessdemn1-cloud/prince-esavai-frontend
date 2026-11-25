@@ -10,6 +10,7 @@ import { AadhaarCorrectionsView } from './components/AadhaarCorrectionsView';
 import { PanServicesView } from './components/PanServicesView';
 import { VoterServicesView } from './components/VoterServicesView';
 import { RationServicesView } from './components/RationServicesView';
+import { CanServicesView } from './components/CanServicesView';
 import { DrivingServicesView } from './components/DrivingServicesView';
 import { VehicleServicesView } from './components/VehicleServicesView';
 import { FarmerServicesView } from './components/FarmerServicesView';
@@ -93,6 +94,8 @@ const DashboardContent: React.FC = () => {
         return <AadhaarCorrectionsView />;
       case 'ration_services':
         return <RationServicesView />;
+      case 'can_services':
+        return <CanServicesView />;
       case 'pan_services':
         return <PanServicesView />;
       case 'voter_services':

@@ -657,14 +657,6 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
                   {ticket.alternateNumber || ticket.alternatePhone || 'None Provided'}
                 </div>
               </div>
-
-              <div className="p-3.5 bg-slate-50/80 border border-slate-200/70 rounded-xl">
-                <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Priority Level</span>
-                <div className="text-xs font-bold text-slate-900 mt-1 flex items-center gap-1.5">
-                  <span className={`w-2 h-2 rounded-full ${ticket.priority === 'Urgent' ? 'bg-rose-500' : ticket.priority === 'High' ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                  <span>{ticket.priority || 'Normal'}</span>
-                </div>
-              </div>
             </div>
 
             {citizenAddress && (

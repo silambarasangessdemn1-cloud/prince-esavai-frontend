@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Store,
   Search,
@@ -12,13 +12,13 @@ import {
   User,
   Phone,
   Fingerprint,
-  MessageSquare,
   List,
-  Plus,
   Trash2,
-  QrCode,
-  FileText,
-  Building,
+  Upload,
+  CreditCard,
+  MapPin,
+  Image as ImageIcon,
+  FileCheck,
 } from 'lucide-react';
 import { ServiceIcon } from './ServiceIcon';
 import { useApp } from '../context/AppContext';
@@ -28,140 +28,202 @@ import {
   rationApi,
   RationRequest,
   RationStatsResponse,
-  FamilyMember,
 } from '../services/rationApi';
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Ration Service Cards Definitions (TNPDS - e-Sevai reference portal)
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface RationServiceCard {
+export type RationFormType =
+  | 'add_member'
+  | 'remove_member'
+  | 'family_head_change'
+  | 'address_change'
+  | 'mobile_link'
+  | 'name_correction'
+  | 'dob_correction'
+  | 'address_correction'
+  | 'photo_change'
+  | 'number_missing'
+  | 'smartcard_qr'
+  | 'green_card';
+
+export interface RationServiceCard {
   id: string;
   name: string;
+  tamilSubtitle?: string;
   actionLabel: string;
-  category: 'new' | 'members' | 'corrections' | 'download';
+  category: 'members' | 'corrections' | 'download';
   iconType: string;
   cornerColor: 'green';
   actionColor: 'green';
   backendServiceType: string;
   defaultDescription: string;
-  requiresExistingCard: boolean;
+  formType: RationFormType;
 }
 
-const TN_DISTRICTS = [
-  'Salem', 'Chennai', 'Coimbatore', 'Madurai', 'Tiruchirappalli',
-  'Tirunelveli', 'Erode', 'Vellore', 'Thoothukudi', 'Dindigul',
-  'Thanjavur', 'Kanchipuram', 'Cuddalore', 'Tiruppur', 'Villupuram',
-  'Namakkal', 'Karur', 'Krishnagiri', 'Dharmapuri', 'Pudukkottai',
-  'Ramanathapuram', 'Sivaganga', 'Theni', 'Virudhunagar', 'Nagapattinam',
-  'Ariyalur', 'Chengalpattu', 'Kallakurichi', 'Ranipet', 'Tenkasi',
-  'Tirupattur', 'Tiruvallur', 'Tiruvarur', 'Nilgiris', 'Mayiladuthurai'
-];
-
-const CARD_TYPES = [
-  'PHH - Priority Household (Rice)',
-  'PHH-AAY - Antyodaya Anna Yojana',
-  'NPHH - Non-Priority (Rice)',
-  'NPHH-S - Non-Priority (Sugar)',
-  'NPHH-NC - No Commodity',
-];
+export interface UploadedDoc {
+  name: string;
+  dataUrl: string;
+  size: number;
+}
 
 const RATION_SERVICES: RationServiceCard[] = [
   {
-    id: 'new-smartcard-app',
-    name: 'NEW SMART CARD APPLICATION',
-    actionLabel: 'APPLY ONLINE',
-    category: 'new',
-    iconType: 'leaf-ration',
-    cornerColor: 'green',
-    actionColor: 'green',
-    backendServiceType: 'New Smart Card Application',
-    defaultDescription: 'Application for first-time issuance of new digital Smart Family Card in Tamil Nadu Civil Supplies.',
-    requiresExistingCard: false,
-  },
-  {
     id: 'add-family-member',
-    name: 'ADD FAMILY MEMBER (உறுப்பினர் சேர்க்க)',
+    name: 'ADD FAMILY MEMBER (உறுப்பினர் சேர்க்கை)',
+    tamilSubtitle: 'உறுப்பினர் சேர்க்கை',
     actionLabel: 'ADD MEMBER',
     category: 'members',
     iconType: 'smartcard',
     cornerColor: 'green',
     actionColor: 'green',
     backendServiceType: 'Add Family Member',
-    defaultDescription: 'Include newborn child, spouse, or family member into existing smart ration card with Birth Certificate or Aadhaar.',
-    requiresExistingCard: true,
+    defaultDescription: 'Include newborn or spouse with Aadhaar & Smart Card verification.',
+    formType: 'add_member',
   },
   {
     id: 'remove-family-member',
-    name: 'REMOVE / DELETE MEMBER (உறுப்பினர் நீக்க)',
-    actionLabel: 'DELETE',
+    name: 'REMOVE MEMBER (உறுப்பினர் நீக்க)',
+    tamilSubtitle: 'உறுப்பினர் நீக்க',
+    actionLabel: 'DELETE MEMBER',
     category: 'members',
     iconType: 'smartcard',
     cornerColor: 'green',
     actionColor: 'green',
     backendServiceType: 'Remove / Delete Family Member',
-    defaultDescription: 'Surrender or deletion of family member name due to marriage, separate card creation, or demise.',
-    requiresExistingCard: true,
+    defaultDescription: 'Surrender or deletion of family member name due to marriage or separate card.',
+    formType: 'remove_member',
   },
   {
     id: 'ration-family-head',
-    name: 'FAMILY HEAD CHANGE (WITHOUT OTP)',
-    actionLabel: 'WITHOUT OTP',
+    name: 'CHANGE OF FAMILY HEAD (குடும்ப தலைவர் மாற்றம்)',
+    tamilSubtitle: 'குடும்ப தலைவர் மாற்றம்',
+    actionLabel: 'CHANGE HEAD',
     category: 'corrections',
     iconType: 'leaf-ration',
     cornerColor: 'green',
     actionColor: 'green',
     backendServiceType: 'Change of Family Head',
-    defaultDescription: 'Transfer head of family designation to senior female or male family member without requiring OTP.',
-    requiresExistingCard: true,
-  },
-  {
-    id: 'ration-mobile-link',
-    name: 'NEW MOBILE NUMBER LINK (NO OTP)',
-    actionLabel: 'WITHOUT OTP',
-    category: 'corrections',
-    iconType: 'leaf-ration',
-    cornerColor: 'green',
-    actionColor: 'green',
-    backendServiceType: 'Mobile Number Update / Link',
-    defaultDescription: 'Direct portal linking and updating of 10-digit mobile number for ration SMS notifications and OTP delivery.',
-    requiresExistingCard: true,
+    defaultDescription: 'Transfer head of family designation to senior female or male family member.',
+    formType: 'family_head_change',
   },
   {
     id: 'address-fps-change',
-    name: 'CHANGE OF ADDRESS & FPS (முகவரி)',
-    actionLabel: 'TRANSFER',
+    name: 'CHANGE OF ADDRESS (முகவரி மாற்றம்)',
+    tamilSubtitle: 'முகவரி மாற்றம்',
+    actionLabel: 'TRANSFER ADDRESS',
     category: 'corrections',
     iconType: 'smartcard',
     cornerColor: 'green',
     actionColor: 'green',
     backendServiceType: 'Change of Address / FPS',
-    defaultDescription: 'Transfer enrollment and Fair Price Shop (FPS) allocation due to shifting of residence across wards or taluks.',
-    requiresExistingCard: true,
+    defaultDescription: 'Transfer Fair Price Shop (FPS) and update residential address.',
+    formType: 'address_change',
+  },
+  {
+    id: 'ration-mobile-link',
+    name: 'MOBILE NUMBER LINK (செல் நம்பர் இணைத்தல்)',
+    tamilSubtitle: 'செல் நம்பர் இணைத்தல்',
+    actionLabel: 'LINK MOBILE',
+    category: 'corrections',
+    iconType: 'leaf-ration',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Mobile Number Update / Link',
+    defaultDescription: 'Update & link new 10-digit mobile number for TNPDS OTP & SMS.',
+    formType: 'mobile_link',
+  },
+  {
+    id: 'name-correction',
+    name: 'NAME CORRECTION (பெயர் திருத்தம்)',
+    tamilSubtitle: 'பெயர் திருத்தம்',
+    actionLabel: 'CORRECT NAME',
+    category: 'corrections',
+    iconType: 'leaf-ration',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Smart Card Name Correction',
+    defaultDescription: 'Spelling or clerical error modification in family member name.',
+    formType: 'name_correction',
+  },
+  {
+    id: 'dob-correction',
+    name: 'DOB CORRECTION (பிறந்த தேதி திருத்தம்)',
+    tamilSubtitle: 'பிறந்த தேதி திருத்தம்',
+    actionLabel: 'CORRECT DOB',
+    category: 'corrections',
+    iconType: 'leaf-ration',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Smart Card DOB Correction',
+    defaultDescription: 'Correction of date of birth or name particulars in smart card.',
+    formType: 'dob_correction',
+  },
+  {
+    id: 'address-correction',
+    name: 'ADDRESS CORRECTION (முகவரி திருத்தம்)',
+    tamilSubtitle: 'முகவரி திருத்தம்',
+    actionLabel: 'CORRECT ADDRESS',
+    category: 'corrections',
+    iconType: 'smartcard',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Smart Card Address Correction',
+    defaultDescription: 'Minor door number or street spelling correction in existing address.',
+    formType: 'address_correction',
+  },
+  {
+    id: 'photo-change',
+    name: 'PHOTO CHANGE (புகைப்படம் மாற்றம்)',
+    tamilSubtitle: 'புகைப்படம் மாற்றம்',
+    actionLabel: 'CHANGE PHOTO',
+    category: 'corrections',
+    iconType: 'leaf-ration',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Smart Card Photo Change',
+    defaultDescription: 'Update head of family photograph printed on digital smart card.',
+    formType: 'photo_change',
+  },
+  {
+    id: 'smartcard-number-missing',
+    name: 'SMART CARD NUMBER MISSING (எண் காணவில்லை)',
+    tamilSubtitle: 'ஸ்மார்ட் கார்டு எண் தொலைந்தது',
+    actionLabel: 'FIND CARD NUMBER',
+    category: 'download',
+    iconType: 'smartcard',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Smart Card Number Missing',
+    defaultDescription: 'Retrieve lost smart ration card number using Aadhaar proof.',
+    formType: 'number_missing',
   },
   {
     id: 'ration-qr-code',
-    name: 'QR CODE & SMART CARD DOWNLOAD',
-    actionLabel: 'INSTANT DOWNLOAD',
+    name: 'SMART CARD QR (ஸ்மார்ட் கார்டு QR)',
+    tamilSubtitle: 'ஸ்மார்ட் கார்டு QR கோடு',
+    actionLabel: 'DOWNLOAD QR',
     category: 'download',
     iconType: 'qr-ration',
     cornerColor: 'green',
     actionColor: 'green',
     backendServiceType: 'Smart Card QR Code & Download',
-    defaultDescription: 'Generate official barcode & QR code PDF print slip for instant smart card duplicate verification.',
-    requiresExistingCard: true,
+    defaultDescription: 'Instant QR code verification barcode and electronic card slip.',
+    formType: 'smartcard_qr',
   },
   {
-    id: 'card-type-conversion',
-    name: 'CARD COMMODITY CONVERSION',
-    actionLabel: 'CONVERSION',
-    category: 'corrections',
-    iconType: 'leaf-ration',
+    id: 'smartcard-pdf-green',
+    name: 'SMART CARD PDF GREEN CARD (பச்சை அட்டை PDF)',
+    tamilSubtitle: 'ஸ்மார்ட் கார்டு PDF பச்சை அட்டை',
+    actionLabel: 'DOWNLOAD PDF',
+    category: 'download',
+    iconType: 'qr-ration',
     cornerColor: 'green',
     actionColor: 'green',
-    backendServiceType: 'Card Type Conversion',
-    defaultDescription: 'Convert commodity preference from Sugar Card (NPHH-S) to Rice Card (PHH/NPHH) or No Commodity card.',
-    requiresExistingCard: true,
+    backendServiceType: 'Smart Card PDF Green Card',
+    defaultDescription: 'Full color Green Ration Card PDF copy for print and laminate.',
+    formType: 'green_card',
   },
 ];
 
@@ -176,43 +238,146 @@ const STATUS_BADGES: Record<string, string> = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  Reusable File Upload Field Component
+// ─────────────────────────────────────────────────────────────────────────────
+
+interface FileUploadFieldProps {
+  label: string;
+  tamilLabel?: string;
+  file?: UploadedDoc | null;
+  onChange: (doc: UploadedDoc) => void;
+  onRemove: () => void;
+  error?: string;
+  required?: boolean;
+  accept?: string;
+}
+
+const FileUploadField: React.FC<FileUploadFieldProps> = ({
+  label,
+  tamilLabel,
+  file,
+  onChange,
+  onRemove,
+  error,
+  required = true,
+  accept = 'image/*,.pdf',
+}) => {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 8 * 1024 * 1024) {
+      alert('File size must be less than 8MB');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      onChange({
+        name: f.name,
+        dataUrl: reader.result as string,
+        size: f.size,
+      });
+    };
+    reader.readAsDataURL(f);
+  };
+
+  return (
+    <div>
+      <label className="block text-xs font-bold text-slate-700 mb-1">
+        <span>{tamilLabel ? `${tamilLabel} (${label})` : label}</span>
+        {required && <span className="text-red-500 ml-1">*</span>}
+      </label>
+      {file ? (
+        <div className="flex items-center justify-between p-2.5 bg-emerald-50/80 border border-emerald-300 rounded-xl shadow-2xs">
+          <div className="flex items-center gap-2.5 min-w-0">
+            {file.dataUrl.startsWith('data:image/') ? (
+              <img
+                src={file.dataUrl}
+                alt="Uploaded preview"
+                className="w-10 h-10 rounded-lg object-cover border border-emerald-300 shrink-0"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-lg bg-emerald-200 text-emerald-800 flex items-center justify-center font-bold text-xs shrink-0">
+                PDF
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-800 truncate">{file.name}</p>
+              <p className="text-[10px] text-emerald-700 font-semibold font-mono">
+                {(file.size / 1024).toFixed(0)} KB • Ready
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onRemove}
+            className="p-1.5 text-rose-600 hover:bg-rose-100 rounded-lg transition-colors cursor-pointer"
+            title="Remove file"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      ) : (
+        <div>
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className={`w-full py-2.5 px-3 border-2 border-dashed rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-colors ${
+              error
+                ? 'border-red-400 bg-red-50/50 text-red-600'
+                : 'border-slate-300 hover:border-emerald-500 bg-slate-50/70 hover:bg-emerald-50/30 text-slate-600'
+            }`}
+          >
+            <Upload className="w-4 h-4 text-emerald-600" />
+            <span className="text-xs font-bold">Choose File (Photo / PDF)</span>
+          </button>
+          <input
+            ref={inputRef}
+            type="file"
+            accept={accept}
+            onChange={handleFile}
+            className="hidden"
+          />
+        </div>
+      )}
+      {error && <p className="text-[11px] text-red-600 font-bold mt-1">{error}</p>}
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  Main Ration Services View Component
 // ─────────────────────────────────────────────────────────────────────────────
 export const RationServicesView: React.FC = () => {
   const { setActiveTab, getServicePrice, openPaymentDialog, addApplication } = useApp();
 
-  // State
-  const [activeCategory, setActiveCategory] = useState<'all' | 'new' | 'members' | 'corrections' | 'download' | 'tickets'>('all');
+  // Active Category Filter
+  const [activeCategory, setActiveCategory] = useState<'all' | 'members' | 'corrections' | 'download' | 'tickets'>('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedService, setSelectedService] = useState<RationServiceCard | null>(null);
   const [inspectRequest, setInspectRequest] = useState<RationRequest | null>(null);
 
-  // Form State
+  // Form Fields State (Strictly for given content per form)
   const [formData, setFormData] = useState({
-    rationCardNumber: '',
-    cardType: 'PHH - Priority Household (Rice)',
-    applicantName: '',
-    relativeName: '',
-    relationType: 'Husband',
-    gender: 'Female',
-    dateOfBirth: '',
-    applicantPhone: '',
-    applicantEmail: '',
     aadhaarNumber: '',
-    district: 'Salem',
-    taluk: '',
-    villageOrWard: '',
-    fpsCode: '',
-    newAddress: '',
-    correctionDetails: '',
-    remarksOrNotes: '',
-    priority: 'Medium',
+    smartCardNumber: '',
+    customerPhone: '',
+    shopCode: '',
+    fullAddress: '',
+    newPhone: '',
+    oldName: '',
+    newName: '',
   });
 
-  // Dynamic Members State (for Add/Remove member)
-  const [membersList, setMembersList] = useState<FamilyMember[]>([
-    { name: '', relation: 'Son', gender: 'Male', dateOfBirth: '', aadhaarNumber: '' }
-  ]);
+  // Uploaded Files State
+  const [uploadedFiles, setUploadedFiles] = useState<{
+    aadhaarPhoto?: UploadedDoc | null;
+    smartCardPhoto?: UploadedDoc | null;
+    passportPhoto?: UploadedDoc | null;
+    eCardFile?: UploadedDoc | null;
+    newPhoto?: UploadedDoc | null;
+  }>({});
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -246,7 +411,6 @@ export const RationServicesView: React.FC = () => {
       if (listRes.success && Array.isArray(listRes.data)) {
         setRecentRequests(listRes.data);
 
-        // Find the latest request that has an official admin response
         const withResponse = listRes.data.find(
           (r: RationRequest) => r.resolutionRemarks && r.resolutionRemarks.trim().length > 0
         );
@@ -279,78 +443,135 @@ export const RationServicesView: React.FC = () => {
     const matchesSearch =
       !searchTerm ||
       service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (service.tamilSubtitle && service.tamilSubtitle.toLowerCase().includes(searchTerm.toLowerCase())) ||
       service.defaultDescription.toLowerCase().includes(searchTerm.toLowerCase());
 
     return matchesCategory && matchesSearch;
   });
 
-  // Open modal
+  // Open modal and reset fields
   const handleOpenService = (service: RationServiceCard) => {
     setSelectedService(service);
     setSubmitSuccess(null);
     setFieldErrors({});
     setFormData({
-      rationCardNumber: '',
-      cardType: 'PHH - Priority Household (Rice)',
-      applicantName: '',
-      relativeName: '',
-      relationType: 'Husband',
-      gender: 'Female',
-      dateOfBirth: '',
-      applicantPhone: '',
-      applicantEmail: '',
       aadhaarNumber: '',
-      district: 'Salem',
-      taluk: '',
-      villageOrWard: '',
-      fpsCode: '',
-      newAddress: '',
-      correctionDetails: '',
-      remarksOrNotes: service.defaultDescription,
-      priority: 'Medium',
+      smartCardNumber: '',
+      customerPhone: '',
+      shopCode: '',
+      fullAddress: '',
+      newPhone: '',
+      oldName: '',
+      newName: '',
     });
-    setMembersList([
-      { name: '', relation: 'Son', gender: 'Male', dateOfBirth: '', aadhaarNumber: '' }
-    ]);
+    setUploadedFiles({});
   };
 
-  // Add Member Row
-  const handleAddMemberRow = () => {
-    setMembersList([
-      ...membersList,
-      { name: '', relation: 'Daughter', gender: 'Female', dateOfBirth: '', aadhaarNumber: '' }
-    ]);
-  };
-
-  // Remove Member Row
-  const handleRemoveMemberRow = (index: number) => {
-    if (membersList.length > 1) {
-      setMembersList(membersList.filter((_, idx) => idx !== index));
-    }
-  };
-
-  // Form Submit
+  // Form Submit Handler
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedService) return;
 
     const errors: Record<string, string> = {};
+    const ft = selectedService.formType;
 
-    if (!formData.applicantName.trim()) {
-      errors.applicantName = 'Applicant full name is required.';
+    // 1. Aadhaar Card Photo
+    if (
+      ['add_member', 'remove_member', 'family_head_change', 'number_missing'].includes(ft) &&
+      !uploadedFiles.aadhaarPhoto
+    ) {
+      errors.aadhaarPhoto = 'ஆதார் கார்டு போட்டோ பதிவேற்றம் செய்க (Aadhaar Card Photo is required).';
     }
 
-    const cleanPhone = formData.applicantPhone.replace(/\D/g, '');
-    if (cleanPhone.length < 10) {
-      errors.applicantPhone = 'Please provide a valid 10-digit mobile number.';
+    // 2. Smart Card Photo
+    if (
+      [
+        'add_member',
+        'remove_member',
+        'family_head_change',
+        'address_change',
+        'mobile_link',
+        'name_correction',
+        'dob_correction',
+        'address_correction',
+        'photo_change',
+        'smartcard_qr',
+        'green_card',
+      ].includes(ft) &&
+      !uploadedFiles.smartCardPhoto
+    ) {
+      errors.smartCardPhoto = 'ஸ்மார்ட் கார்டு போட்டோ பதிவேற்றம் செய்க (Smart Card Photo is required).';
     }
 
-    if (selectedService.requiresExistingCard && !formData.rationCardNumber.trim()) {
-      errors.rationCardNumber = 'Smart Ration Card Number is required for this service.';
+    // 3. Passport Size Photo
+    if (ft === 'family_head_change' && !uploadedFiles.passportPhoto) {
+      errors.passportPhoto = 'பாஸ்போர்ட் சைஸ் போட்டோ பதிவேற்றம் செய்க (Passport Size Photo is required).';
     }
 
-    if (formData.aadhaarNumber && formData.aadhaarNumber.replace(/\D/g, '').length !== 12) {
-      errors.aadhaarNumber = 'Aadhaar must be exactly 12 digits.';
+    // 4. New Photo
+    if (ft === 'photo_change' && !uploadedFiles.newPhoto) {
+      errors.newPhoto = 'புதிய புகைப்படம் பதிவேற்றம் செய்க (New Photo is required).';
+    }
+
+    // 5. E Card
+    if (
+      ['name_correction', 'dob_correction', 'address_correction', 'photo_change', 'smartcard_qr', 'green_card'].includes(ft) &&
+      !uploadedFiles.eCardFile
+    ) {
+      errors.eCardFile = 'E Card ஆவணம் பதிவேற்றம் செய்க (E Card is required).';
+    }
+
+    // 6. Aadhaar Number
+    if (['add_member', 'remove_member', 'family_head_change'].includes(ft)) {
+      const cleanAadhaar = formData.aadhaarNumber.replace(/\D/g, '');
+      if (cleanAadhaar.length !== 12) {
+        errors.aadhaarNumber = '12 இலக்க ஆதார் எண் தேவை (Aadhaar must be exactly 12 digits).';
+      }
+    }
+
+    // 7. Smart Card Number
+    if (ft !== 'number_missing') {
+      if (!formData.smartCardNumber.trim()) {
+        errors.smartCardNumber = 'ஸ்மார்ட் கார்டு எண் தேவை (Smart Card Number is required).';
+      }
+    }
+
+    // 8. Customer Phone Number
+    if (ft === 'mobile_link') {
+      const cleanNewPhone = formData.newPhone.replace(/\D/g, '');
+      if (cleanNewPhone.length < 10) {
+        errors.newPhone = 'சரியான 10 இலக்க புதிய போன் எண் தேவை (10-digit mobile number required).';
+      }
+    } else {
+      const cleanPhone = formData.customerPhone.replace(/\D/g, '');
+      if (cleanPhone.length < 10) {
+        errors.customerPhone = 'சரியான 10 இலக்க தொடர்பு எண் தேவை (10-digit mobile number required).';
+      }
+    }
+
+    // 9. Shop Code & Address (for address_change)
+    if (ft === 'address_change') {
+      if (!formData.shopCode.trim()) {
+        errors.shopCode = 'Shop Code நியாய விலைக்கடை எண் தேவை (Shop Code is required).';
+      }
+      if (!formData.fullAddress.trim()) {
+        errors.fullAddress = 'முழு முகவரி விவரங்கள் தேவை (Full Address is required).';
+      }
+    }
+
+    // 10. Address Correction
+    if (ft === 'address_correction' && !formData.fullAddress.trim()) {
+      errors.fullAddress = 'திருத்தப்பட வேண்டிய முழு முகவரி தேவை (Full Address Type is required).';
+    }
+
+    // 11. Old Name / New Name
+    if (['name_correction', 'dob_correction'].includes(ft)) {
+      if (!formData.oldName.trim()) {
+        errors.oldName = 'Old Name பழைய விவரம் தேவை (Old Name is required).';
+      }
+      if (!formData.newName.trim()) {
+        errors.newName = 'New Name புதிய திருத்த விவரம் தேவை (New Name is required).';
+      }
     }
 
     if (Object.keys(errors).length > 0) {
@@ -359,35 +580,64 @@ export const RationServicesView: React.FC = () => {
     }
 
     setFieldErrors({});
+
     const fee = getServicePrice(selectedService.id);
+    const primaryPhone = (formData.customerPhone || formData.newPhone).replace(/\D/g, '');
+    const applicantIdentifier =
+      formData.newName ||
+      formData.oldName ||
+      (formData.smartCardNumber ? `Card: ${formData.smartCardNumber}` : '') ||
+      (formData.aadhaarNumber ? `Aadhaar: ${formData.aadhaarNumber}` : '') ||
+      `Citizen (${primaryPhone})`;
 
     // Prompt UPI QR payment modal before completing submission
     openPaymentDialog({
       serviceName: selectedService.name,
       categoryLabel: 'RATION SERVICES',
       amount: fee,
-      applicantName: formData.applicantName.trim(),
-      applicantPhone: cleanPhone,
+      applicantName: applicantIdentifier,
+      applicantPhone: primaryPhone,
       onConfirmed: async (paymentDetails) => {
         setIsSubmitting(true);
         setFieldErrors({});
 
         const ticketNum = `RAT-${Date.now()}`;
 
-        // Immediately add to local & history storage (which triggers bilingual confirmation modal instantly!)
+        // Package all uploaded attachments
+        const documentsList: Array<{ name: string; url: string; type?: string }> = [];
+        if (uploadedFiles.aadhaarPhoto) {
+          documentsList.push({ name: 'Aadhaar Card Photo', url: uploadedFiles.aadhaarPhoto.dataUrl });
+        }
+        if (uploadedFiles.smartCardPhoto) {
+          documentsList.push({ name: 'Smart Card Photo', url: uploadedFiles.smartCardPhoto.dataUrl });
+        }
+        if (uploadedFiles.passportPhoto) {
+          documentsList.push({ name: 'Passport Size Photo', url: uploadedFiles.passportPhoto.dataUrl });
+        }
+        if (uploadedFiles.newPhoto) {
+          documentsList.push({ name: 'New Photo', url: uploadedFiles.newPhoto.dataUrl });
+        }
+        if (uploadedFiles.eCardFile) {
+          documentsList.push({ name: 'E Card Document', url: uploadedFiles.eCardFile.dataUrl });
+        }
+
+        // Immediately add to local & history storage
         addApplication({
           serviceId: selectedService.id,
           serviceName: selectedService.name,
-          applicantName: formData.applicantName.trim(),
-          mobile: cleanPhone,
+          applicantName: applicantIdentifier,
+          mobile: primaryPhone,
           status: 'Under Review',
           fee,
           walletType: 'payments',
           details: {
             ...formData,
             ticketNumber: ticketNum,
+            serviceType: selectedService.backendServiceType,
+            formType: selectedService.formType,
           },
-          remarks: `Payment of ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Admin will approve soon and contact you.`,
+          documents: documentsList as any,
+          remarks: `Payment of ₹${paymentDetails.paidAmount} submitted with UTR: ${paymentDetails.utrNumber}. Verification pending with TNPDS operator.`,
           paidAmount: paymentDetails.paidAmount,
           utrNumber: paymentDetails.utrNumber,
           upiIdUsed: paymentDetails.upiIdUsed,
@@ -401,41 +651,34 @@ export const RationServicesView: React.FC = () => {
         setSubmitSuccess(ticketNum);
 
         try {
-          const validMembers = membersList.filter((m) => m.name.trim().length > 0);
-
           const res = await rationApi.submitRequest({
             serviceType: selectedService.backendServiceType,
-            rationCardNumber: formData.rationCardNumber.trim().toUpperCase(),
-            cardType: formData.cardType,
-            applicantName: formData.applicantName.trim(),
-            relativeName: formData.relativeName.trim(),
-            relationType: formData.relationType,
-            gender: formData.gender,
-            dateOfBirth: formData.dateOfBirth,
-            applicantPhone: cleanPhone,
-            applicantEmail: formData.applicantEmail.trim(),
+            rationCardNumber: formData.smartCardNumber.trim().toUpperCase(),
+            applicantName: applicantIdentifier,
+            applicantPhone: primaryPhone,
             aadhaarNumber: formData.aadhaarNumber.replace(/\D/g, ''),
-            district: formData.district,
-            taluk: formData.taluk.trim(),
-            villageOrWard: formData.villageOrWard.trim(),
-            fpsCode: formData.fpsCode.trim(),
-            newAddress: formData.newAddress.trim(),
-            members: selectedService.category === 'members' ? validMembers : [],
-            correctionDetails: formData.correctionDetails.trim(),
-            remarksOrNotes: formData.remarksOrNotes.trim(),
-            priority: formData.priority,
+            fpsCode: formData.shopCode.trim(),
+            newAddress: formData.fullAddress.trim(),
+            correctionDetails: [
+              formData.oldName ? `Old: ${formData.oldName}` : '',
+              formData.newName ? `New: ${formData.newName}` : '',
+              formData.fullAddress ? `Address: ${formData.fullAddress}` : '',
+              formData.newPhone ? `New Phone: ${formData.newPhone}` : '',
+            ].filter(Boolean).join(' | '),
+            remarksOrNotes: `Submitted from Ration Services Portal. Service: ${selectedService.name}`,
+            priority: 'Medium',
           });
 
           const finalTicket = res.success && res.ticketNumber ? res.ticketNumber : ticketNum;
 
-          // Record payment in payments DB & localStorage
+          // Record payment in payments DB
           await paymentApi.submitPayment({
             ticketNumber: finalTicket,
             serviceId: selectedService.id,
             serviceName: selectedService.name,
             category: 'Ration',
-            applicantName: formData.applicantName.trim(),
-            applicantPhone: cleanPhone,
+            applicantName: applicantIdentifier,
+            applicantPhone: primaryPhone,
             amount: paymentDetails.paidAmount,
             utrNumber: paymentDetails.utrNumber,
             upiIdUsed: paymentDetails.upiIdUsed,
@@ -501,145 +744,115 @@ export const RationServicesView: React.FC = () => {
               <CheckCircle2 className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-wider shadow-2xs">
-                  OFFICIAL TNPDS RESPONSE RECEIVED
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs uppercase tracking-wider text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded">
+                  Official Operator Update
                 </span>
-                <span className="font-mono text-xs font-black text-emerald-900 bg-emerald-100 px-2.5 py-0.5 rounded">
-                  {latestAdminResponse.ticketNumber}
+                <span className="text-xs text-slate-500 font-mono">
+                  Ticket #{latestAdminResponse.ticketNumber}
                 </span>
-                <span className="text-xs font-bold text-slate-800">
-                  {latestAdminResponse.applicantName}
-                </span>
-                <span className={`px-2 py-0.5 rounded-md font-bold text-[11px] border ${STATUS_BADGES[latestAdminResponse.status] || 'bg-white'}`}>
-                  {latestAdminResponse.status}
-                </span>
+              </div>
+              <p className="text-sm font-black text-emerald-950 mt-1">
+                "{latestAdminResponse.resolutionRemarks}"
+              </p>
+              <div className="flex items-center gap-4 text-xs text-emerald-800 font-medium mt-1">
+                <span>Citizen: <strong>{latestAdminResponse.applicantName}</strong></span>
                 {latestAdminResponse.tnpdsAckNumber && (
-                  <span className="px-2 py-0.5 rounded bg-lime-100 text-lime-900 font-mono text-[11px] font-bold">
-                    Ack No: {latestAdminResponse.tnpdsAckNumber}
-                  </span>
+                  <span>TNPDS Ref: <strong className="font-mono">{latestAdminResponse.tnpdsAckNumber}</strong></span>
                 )}
-              </div>
-
-              <div className="text-sm sm:text-base font-black text-emerald-950 flex items-start gap-1.5 pt-0.5">
-                <span className="text-emerald-600 text-lg leading-none">“</span>
-                <span className="leading-snug">
-                  {latestAdminResponse.resolutionRemarks || `Application status updated to "${latestAdminResponse.status}" by Civil Supplies Officer.`}
-                </span>
-                <span className="text-emerald-600 text-lg leading-none">”</span>
-              </div>
-
-              <div className="text-[11px] text-emerald-700 font-semibold flex items-center gap-2 mt-1">
-                <span>Service: <strong>{latestAdminResponse.serviceType}</strong></span>
-                <span>•</span>
-                <span>Updated: {new Date(latestAdminResponse.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
             </div>
           </div>
-
           <button
             onClick={() => setInspectRequest(latestAdminResponse)}
-            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shrink-0 cursor-pointer transition-all shadow-xs flex items-center gap-1.5"
+            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold rounded-xl cursor-pointer shadow-xs transition-colors whitespace-nowrap self-stretch sm:self-auto text-center"
           >
-            <MessageSquare className="w-4 h-4" />
-            <span>View Response Details</span>
+            View Official Response
           </button>
         </div>
       )}
 
       {/* ─────────────────────────────────────────────────────────────────
-          TOP CONTAINER CARD: HEADER + CATEGORY FILTER PILLS + SEARCH
+          TOP SHELF: TITLE, CATEGORY PILLS & SEARCH BAR
          ───────────────────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 space-y-6">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-5 border-b border-slate-100">
+      <div className="space-y-4">
+        {/* Title Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <div className="flex items-center gap-3">
-              <div className="w-13 h-13 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center p-2 text-emerald-600 shadow-2xs">
-                <Store className="w-8 h-8" />
-              </div>
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-                  TN Ration Card Services (TNPDS)
-                </h1>
-                <p className="text-sm text-slate-500 font-bold">
-                  New Smart Card • Member Addition & Removal • Head Change • Address & Mobile Update (Without OTP)
-                </p>
-              </div>
-            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+              <Store className="w-6 h-6 text-emerald-700" />
+              <span>RATION SERVICES (TNPDS)</span>
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 font-medium">
+              Tamil Nadu Public Distribution System • Smart Family Card Portal
+            </p>
+          </div>
 
-            {/* Category Filter Pills */}
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pt-4 text-sm font-semibold">
-              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mr-1 shrink-0">
-                Category:
-              </span>
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+            <span>Official e-Sevai Online Submission Active</span>
+          </div>
+        </div>
 
-              <button
-                onClick={() => setActiveCategory('all')}
-                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  activeCategory === 'all'
-                    ? 'bg-black text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                }`}
-              >
-                All Categories
-              </button>
+        {/* Categories & Filter Bar */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+          {/* Category Pills */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
+            <button
+              onClick={() => setActiveCategory('all')}
+              className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                activeCategory === 'all'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            >
+              All Services ({RATION_SERVICES.length})
+            </button>
 
-              <button
-                onClick={() => setActiveCategory('new')}
-                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
-                  activeCategory === 'new'
-                    ? 'bg-[#15803d] text-white shadow-xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}
-              >
-                New Smart Card
-              </button>
+            <button
+              onClick={() => setActiveCategory('members')}
+              className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                activeCategory === 'members'
+                  ? 'bg-[#00a86b] text-white shadow-xs'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}
+            >
+              Family Members (சேர்க்கை / நீக்க)
+            </button>
 
-              <button
-                onClick={() => setActiveCategory('members')}
-                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  activeCategory === 'members'
-                    ? 'bg-[#00a86b] text-white shadow-xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}
-              >
-                Family Members (Add/Remove)
-              </button>
+            <button
+              onClick={() => setActiveCategory('corrections')}
+              className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
+                activeCategory === 'corrections'
+                  ? 'bg-[#eab308] text-white shadow-xs'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
+              }`}
+            >
+              Corrections & Changes (மாற்றம் / திருத்தம்)
+            </button>
 
-              <button
-                onClick={() => setActiveCategory('corrections')}
-                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
-                  activeCategory === 'corrections'
-                    ? 'bg-[#eab308] text-white shadow-xs'
-                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200'
-                }`}
-              >
-                Head Change & Mobile Link
-              </button>
+            <button
+              onClick={() => setActiveCategory('download')}
+              className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
+                activeCategory === 'download'
+                  ? 'bg-[#15803d] text-white shadow-xs'
+                  : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
+              }`}
+            >
+              Cards & Download (QR / PDF)
+            </button>
 
-              <button
-                onClick={() => setActiveCategory('download')}
-                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer ${
-                  activeCategory === 'download'
-                    ? 'bg-[#15803d] text-white shadow-xs'
-                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200'
-                }`}
-              >
-                QR Code & Download
-              </button>
-
-              <button
-                onClick={() => setActiveCategory('tickets')}
-                className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeCategory === 'tickets'
-                    ? 'bg-slate-900 text-white shadow-xs'
-                    : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
-                }`}
-              >
-                <Clock className="w-3.5 h-3.5 text-lime-600" />
-                <span>Track Requests ({stats?.total || 0})</span>
-              </button>
-            </div>
+            <button
+              onClick={() => setActiveCategory('tickets')}
+              className={`px-3.5 py-1.5 rounded-full whitespace-nowrap text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                activeCategory === 'tickets'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200/70'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-lime-600" />
+              <span>Track Requests ({stats?.total || 0})</span>
+            </button>
           </div>
 
           {/* Quick Search */}
@@ -650,8 +863,8 @@ export const RationServicesView: React.FC = () => {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search Ration services..."
-                className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-lime-500 rounded-xl outline-hidden transition-all shadow-inner font-medium"
+                placeholder="Search services..."
+                className="w-full pl-10 pr-4 py-2.5 text-sm bg-slate-50 hover:bg-slate-100/70 focus:bg-white border border-slate-200 focus:border-lime-500 rounded-xl outline-hidden transition-all font-medium"
               />
             </div>
 
@@ -666,7 +879,7 @@ export const RationServicesView: React.FC = () => {
           </div>
         </div>
 
-        {/* ── SHELF CONTENT: VERTICAL RIBBON + GRID OF 8 SERVICE CARDS ── */}
+        {/* ── SHELF CONTENT: VERTICAL RIBBON + GRID OF SERVICE CARDS ── */}
         {activeCategory !== 'tickets' && (
           <div className="bg-white/90 rounded-2xl border border-slate-200/90 shadow-2xs p-3.5 sm:p-4 flex flex-col sm:flex-row items-stretch gap-3 transition-all hover:border-slate-300">
             {/* Left Vertical Ribbon */}
@@ -678,7 +891,7 @@ export const RationServicesView: React.FC = () => {
             </div>
 
             {/* Grid of Cards */}
-            <div className="flex-1 grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
               {filteredServices.map((service) => (
                 <div
                   key={service.id}
@@ -713,7 +926,7 @@ export const RationServicesView: React.FC = () => {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm font-black text-slate-900 uppercase tracking-wide">
               <span className="w-2.5 h-2.5 rounded-full bg-lime-600" />
-              <span>Track Ration Applications by Smart Card Number / Aadhaar / Mobile</span>
+              <span>Track Applications by Smart Card Number / Mobile</span>
             </div>
 
             {stats && (
@@ -744,7 +957,7 @@ export const RationServicesView: React.FC = () => {
                   setLookupError('');
                 }}
                 onKeyDown={(e) => e.key === 'Enter' && handleLookup()}
-                placeholder="Enter 12-digit Ration Card No or Aadhaar No"
+                placeholder="Enter Ration Card No or Mobile Number"
                 className="w-full pl-10 pr-4 py-2.5 border border-slate-300 rounded-lg text-sm focus:border-lime-600 outline-hidden font-mono font-bold uppercase"
               />
             </div>
@@ -831,12 +1044,6 @@ export const RationServicesView: React.FC = () => {
                             <div className="text-slate-800 font-bold">{req.serviceType}</div>
                             {req.resolutionRemarks && (
                               <div className="mt-1.5 p-2 bg-emerald-100/90 border border-emerald-300 rounded-lg text-emerald-950 text-xs shadow-2xs">
-                                <div className="flex items-center gap-1.5 mb-0.5">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
-                                  <span className="font-black text-emerald-900 uppercase text-[9px] tracking-wider">
-                                    Official Admin Response:
-                                  </span>
-                                </div>
                                 <p className="font-black text-emerald-950 leading-relaxed">
                                   "{req.resolutionRemarks}"
                                 </p>
@@ -891,7 +1098,7 @@ export const RationServicesView: React.FC = () => {
                   <tr>
                     <th className="py-3 px-4">Ticket Number</th>
                     <th className="py-3 px-4">Applicant / Head</th>
-                    <th className="py-3 px-4">Smart Card / Aadhaar</th>
+                    <th className="py-3 px-4">Smart Card</th>
                     <th className="py-3 px-4">Service & Admin Response</th>
                     <th className="py-3 px-4">TNPDS Ref Number</th>
                     <th className="py-3 px-4">Status</th>
@@ -926,11 +1133,10 @@ export const RationServicesView: React.FC = () => {
                             <div className="text-[11px] text-slate-400 font-mono">{req.applicantPhone}</div>
                           </td>
                           <td className="py-3 px-4 font-mono text-slate-600">
-                            {req.rationCardNumber && (
+                            {req.rationCardNumber ? (
                               <div className="text-emerald-800 font-bold text-xs">{req.rationCardNumber}</div>
-                            )}
-                            {req.maskedAadhaar && (
-                              <div className="text-slate-400 text-[10px]">{req.maskedAadhaar}</div>
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">---</span>
                             )}
                           </td>
                           <td className="py-3 px-4 max-w-sm">
@@ -993,6 +1199,7 @@ export const RationServicesView: React.FC = () => {
 
       {/* ─────────────────────────────────────────────────────────────────
           MODAL: INTERACTIVE RATION SERVICE APPLICATION FORM
+          (Strictly collects ONLY the required data per service)
          ───────────────────────────────────────────────────────────────── */}
       {selectedService && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
@@ -1007,9 +1214,14 @@ export const RationServicesView: React.FC = () => {
                   <h3 className="font-black text-base sm:text-lg text-white leading-tight">
                     {selectedService.name}
                   </h3>
-                  <p className="text-xs text-emerald-200 font-medium">
-                    Tamil Nadu Public Distribution System (TNPDS) • e-Sevai Online Submission
-                  </p>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <p className="text-xs text-emerald-200 font-medium">
+                      TNPDS Service Application • Required Documents & Verification
+                    </p>
+                    <span className="bg-white/20 text-white border border-white/30 text-[11px] font-black px-2 py-0.5 rounded-full">
+                      Fee: ₹{getServicePrice(selectedService.id)}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -1027,9 +1239,11 @@ export const RationServicesView: React.FC = () => {
                   <div className="w-14 h-14 bg-emerald-600 text-white rounded-full flex items-center justify-center mx-auto shadow-sm">
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  <h4 className="text-lg font-black text-emerald-950">Ration Application Submitted Successfully!</h4>
+                  <h4 className="text-lg font-black text-emerald-950">
+                    விண்ணப்பம் வெற்றிகரமாக பதிவு செய்யப்பட்டது!
+                  </h4>
                   <p className="text-xs text-emerald-800 font-medium">
-                    Your request has been queued in the system. The Civil Supplies operator will verify your details and issue the TNPDS reference.
+                    Application successfully submitted. Operator will verify your uploaded documents and update TNPDS reference.
                   </p>
                   <div className="p-3 bg-white border border-emerald-200 rounded-xl inline-block shadow-2xs">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
@@ -1048,363 +1262,373 @@ export const RationServicesView: React.FC = () => {
                 </div>
               ) : (
                 <form onSubmit={handleFormSubmit} className="space-y-4 text-xs">
-                  {fieldErrors.general && (
+                  {/* General / Missing Field Alert */}
+                  {Object.keys(fieldErrors).length > 0 && (
                     <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl font-bold flex items-center gap-2">
                       <AlertCircle className="w-4 h-4 shrink-0" />
-                      <span>{fieldErrors.general}</span>
+                      <span>தயவுசெய்து அனைத்து தேவையான ஆவணங்கள் மற்றும் விவரங்களை உள்ளிடவும்.</span>
                     </div>
                   )}
 
-                  {/* Existing Ration Card Number (if required) */}
-                  {selectedService.requiresExistingCard && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        12-Digit Smart Ration Card Number <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Store className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          maxLength={16}
-                          value={formData.rationCardNumber}
-                          onChange={(e) => {
-                            setFormData({ ...formData, rationCardNumber: e.target.value.toUpperCase() });
-                            setFieldErrors({ ...fieldErrors, rationCardNumber: '' });
+                  {/* ── DOCUMENTS UPLOAD SECTION ── */}
+                  <div className="p-3.5 bg-slate-50/80 border border-slate-200/80 rounded-xl space-y-3">
+                    <div className="flex items-center gap-2 text-xs font-black text-slate-800 uppercase tracking-wide">
+                      <FileCheck className="w-4 h-4 text-emerald-600" />
+                      <span>தேவையான ஆவணங்கள் (Required Documents)</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {/* 1. Aadhaar Card Photo */}
+                      {['add_member', 'remove_member', 'family_head_change', 'number_missing'].includes(
+                        selectedService.formType
+                      ) && (
+                        <FileUploadField
+                          label="Aadhaar Card Photo"
+                          tamilLabel="ஆதார் கார்டு போட்டோ"
+                          file={uploadedFiles.aadhaarPhoto}
+                          onChange={(doc) => {
+                            setUploadedFiles({ ...uploadedFiles, aadhaarPhoto: doc });
+                            setFieldErrors({ ...fieldErrors, aadhaarPhoto: '' });
                           }}
-                          placeholder="e.g. 33/W/0123456 or 12-digit number"
-                          className="w-full pl-9 pr-3 py-2.5 border border-slate-300 rounded-lg text-sm font-mono font-bold uppercase focus:border-emerald-500 outline-hidden"
+                          onRemove={() => setUploadedFiles({ ...uploadedFiles, aadhaarPhoto: null })}
+                          error={fieldErrors.aadhaarPhoto}
                           required
+                          accept="image/*,.pdf"
                         />
-                      </div>
-                      {fieldErrors.rationCardNumber && (
-                        <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.rationCardNumber}</p>
                       )}
-                    </div>
-                  )}
 
-                  {/* Commodity Card Type */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Family Card Commodity Type
-                    </label>
-                    <select
-                      value={formData.cardType}
-                      onChange={(e) => setFormData({ ...formData, cardType: e.target.value })}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs font-medium focus:border-emerald-500 outline-hidden bg-white text-slate-800"
-                    >
-                      {CARD_TYPES.map((ct) => (
-                        <option key={ct} value={ct}>{ct}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Applicant Name & Relative Name */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Applicant / Family Head Full Name <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          value={formData.applicantName}
-                          onChange={(e) => {
-                            setFormData({ ...formData, applicantName: e.target.value });
-                            setFieldErrors({ ...fieldErrors, applicantName: '' });
+                      {/* 2. Smart Card Photo */}
+                      {[
+                        'add_member',
+                        'remove_member',
+                        'family_head_change',
+                        'address_change',
+                        'mobile_link',
+                        'name_correction',
+                        'dob_correction',
+                        'address_correction',
+                        'photo_change',
+                        'smartcard_qr',
+                        'green_card',
+                      ].includes(selectedService.formType) && (
+                        <FileUploadField
+                          label="Smart Card Photo"
+                          tamilLabel="ஸ்மார்ட் கார்டு ஃபோட்டோ"
+                          file={uploadedFiles.smartCardPhoto}
+                          onChange={(doc) => {
+                            setUploadedFiles({ ...uploadedFiles, smartCardPhoto: doc });
+                            setFieldErrors({ ...fieldErrors, smartCardPhoto: '' });
                           }}
-                          placeholder="Full Name as on Aadhaar"
-                          className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
+                          onRemove={() => setUploadedFiles({ ...uploadedFiles, smartCardPhoto: null })}
+                          error={fieldErrors.smartCardPhoto}
                           required
+                          accept="image/*,.pdf"
                         />
-                      </div>
-                      {fieldErrors.applicantName && (
-                        <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.applicantName}</p>
                       )}
-                    </div>
 
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Father / Husband Name
-                      </label>
-                      <div className="flex gap-2">
-                        <select
-                          value={formData.relationType}
-                          onChange={(e) => setFormData({ ...formData, relationType: e.target.value })}
-                          className="px-2 py-2 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-700 outline-none"
-                        >
-                          <option value="Husband">Husband</option>
-                          <option value="Father">Father</option>
-                          <option value="Mother">Mother</option>
-                          <option value="Wife">Wife</option>
-                        </select>
-                        <input
-                          type="text"
-                          value={formData.relativeName}
-                          onChange={(e) => setFormData({ ...formData, relativeName: e.target.value })}
-                          placeholder="Relative's Name"
-                          className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* DOB, Gender & Aadhaar */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Date of Birth (DD/MM/YYYY)
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.dateOfBirth}
-                        onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Gender</label>
-                      <select
-                        value={formData.gender}
-                        onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden bg-white"
-                      >
-                        <option value="Female">Female (Preferred Family Head)</option>
-                        <option value="Male">Male</option>
-                        <option value="Transgender">Transgender</option>
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Head 12-Digit Aadhaar
-                      </label>
-                      <div className="relative">
-                        <Fingerprint className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="text"
-                          maxLength={12}
-                          value={formData.aadhaarNumber}
-                          onChange={(e) => {
-                            setFormData({ ...formData, aadhaarNumber: e.target.value.replace(/\D/g, '') });
-                            setFieldErrors({ ...fieldErrors, aadhaarNumber: '' });
+                      {/* 3. Passport Size Photo (for family head change) */}
+                      {selectedService.formType === 'family_head_change' && (
+                        <FileUploadField
+                          label="Passport Size Photo"
+                          tamilLabel="பாஸ்போர்ட் சைஸ் போட்டோ"
+                          file={uploadedFiles.passportPhoto}
+                          onChange={(doc) => {
+                            setUploadedFiles({ ...uploadedFiles, passportPhoto: doc });
+                            setFieldErrors({ ...fieldErrors, passportPhoto: '' });
                           }}
-                          placeholder="12-digit Aadhaar"
-                          className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-medium focus:border-emerald-500 outline-hidden"
-                        />
-                      </div>
-                      {fieldErrors.aadhaarNumber && (
-                        <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.aadhaarNumber}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Contact Info */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Contact Mobile Number <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative">
-                        <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                        <input
-                          type="tel"
-                          maxLength={10}
-                          value={formData.applicantPhone}
-                          onChange={(e) => {
-                            setFormData({ ...formData, applicantPhone: e.target.value.replace(/\D/g, '') });
-                            setFieldErrors({ ...fieldErrors, applicantPhone: '' });
-                          }}
-                          placeholder="10-digit mobile"
-                          className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
+                          onRemove={() => setUploadedFiles({ ...uploadedFiles, passportPhoto: null })}
+                          error={fieldErrors.passportPhoto}
                           required
+                          accept="image/*"
                         />
-                      </div>
-                      {fieldErrors.applicantPhone && (
-                        <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.applicantPhone}</p>
+                      )}
+
+                      {/* 4. New Photo (for photo change) */}
+                      {selectedService.formType === 'photo_change' && (
+                        <FileUploadField
+                          label="New Photo"
+                          tamilLabel="புதிய புகைப்படம்"
+                          file={uploadedFiles.newPhoto}
+                          onChange={(doc) => {
+                            setUploadedFiles({ ...uploadedFiles, newPhoto: doc });
+                            setFieldErrors({ ...fieldErrors, newPhoto: '' });
+                          }}
+                          onRemove={() => setUploadedFiles({ ...uploadedFiles, newPhoto: null })}
+                          error={fieldErrors.newPhoto}
+                          required
+                          accept="image/*"
+                        />
+                      )}
+
+                      {/* 5. E Card (for corrections, QR & Green card) */}
+                      {[
+                        'name_correction',
+                        'dob_correction',
+                        'address_correction',
+                        'photo_change',
+                        'smartcard_qr',
+                        'green_card',
+                      ].includes(selectedService.formType) && (
+                        <FileUploadField
+                          label="E Card Document / Photo"
+                          tamilLabel="E Card (மின் அட்டை)"
+                          file={uploadedFiles.eCardFile}
+                          onChange={(doc) => {
+                            setUploadedFiles({ ...uploadedFiles, eCardFile: doc });
+                            setFieldErrors({ ...fieldErrors, eCardFile: '' });
+                          }}
+                          onRemove={() => setUploadedFiles({ ...uploadedFiles, eCardFile: null })}
+                          error={fieldErrors.eCardFile}
+                          required
+                          accept="image/*,.pdf"
+                        />
                       )}
                     </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Email Address (optional)
-                      </label>
-                      <input
-                        type="email"
-                        value={formData.applicantEmail}
-                        onChange={(e) => setFormData({ ...formData, applicantEmail: e.target.value })}
-                        placeholder="name@email.com"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
-                      />
-                    </div>
                   </div>
 
-                  {/* District & Taluk */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">District</label>
-                      <select
-                        value={formData.district}
-                        onChange={(e) => setFormData({ ...formData, district: e.target.value })}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden bg-white text-slate-800"
-                      >
-                        {TN_DISTRICTS.map((dst) => (
-                          <option key={dst} value={dst}>{dst}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Taluk</label>
-                      <input
-                        type="text"
-                        value={formData.taluk}
-                        onChange={(e) => setFormData({ ...formData, taluk: e.target.value })}
-                        placeholder="e.g. Salem West / Omalur"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Fair Price Shop (FPS) Code</label>
-                      <input
-                        type="text"
-                        value={formData.fpsCode}
-                        onChange={(e) => setFormData({ ...formData, fpsCode: e.target.value })}
-                        placeholder="e.g. 08AA012 (Optional)"
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-medium focus:border-emerald-500 outline-hidden"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Add Family Members Section (if category is members) */}
-                  {selectedService.category === 'members' && (
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-emerald-700" />
-                          <span>Member Details to Add / Remove</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={handleAddMemberRow}
-                          className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          <Plus className="w-3 h-3" />
-                          <span>Add More</span>
-                        </button>
-                      </div>
-
-                      <div className="space-y-2">
-                        {membersList.map((mem, idx) => (
-                          <div key={idx} className="flex flex-col sm:flex-row items-center gap-2 bg-white p-2.5 border border-slate-200 rounded-lg">
+                  {/* ── TEXT INPUTS SECTION (Strictly per form requirements) ── */}
+                  <div className="space-y-3">
+                    {/* Old Name & New Name (for Name & DOB corrections) */}
+                    {['name_correction', 'dob_correction'].includes(selectedService.formType) && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Old Name (பழைய பெயர் / விவரம்) <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                             <input
                               type="text"
-                              value={mem.name}
+                              value={formData.oldName}
                               onChange={(e) => {
-                                const copy = [...membersList];
-                                copy[idx].name = e.target.value;
-                                setMembersList(copy);
+                                setFormData({ ...formData, oldName: e.target.value });
+                                setFieldErrors({ ...fieldErrors, oldName: '' });
                               }}
-                              placeholder="Member Name"
-                              className="w-full sm:flex-1 px-2.5 py-1.5 border border-slate-200 rounded text-xs font-medium focus:border-emerald-500 outline-none"
+                              placeholder="Existing Name as in Smart Card"
+                              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-none"
                             />
-                            <select
-                              value={mem.relation}
-                              onChange={(e) => {
-                                const copy = [...membersList];
-                                copy[idx].relation = e.target.value;
-                                setMembersList(copy);
-                              }}
-                              className="w-full sm:w-28 px-2 py-1.5 border border-slate-200 rounded text-xs font-medium bg-white"
-                            >
-                              <option value="Son">Son</option>
-                              <option value="Daughter">Daughter</option>
-                              <option value="Husband">Husband</option>
-                              <option value="Wife">Wife</option>
-                              <option value="Mother">Mother</option>
-                              <option value="Father">Father</option>
-                              <option value="Other">Other</option>
-                            </select>
-                            <input
-                              type="text"
-                              maxLength={12}
-                              value={mem.aadhaarNumber}
-                              onChange={(e) => {
-                                const copy = [...membersList];
-                                copy[idx].aadhaarNumber = e.target.value.replace(/\D/g, '');
-                                setMembersList(copy);
-                              }}
-                              placeholder="12-digit Aadhaar"
-                              className="w-full sm:w-32 px-2.5 py-1.5 border border-slate-200 rounded text-xs font-mono font-medium focus:border-emerald-500 outline-none"
-                            />
-                            {membersList.length > 1 && (
-                              <button
-                                type="button"
-                                onClick={() => handleRemoveMemberRow(idx)}
-                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
                           </div>
-                        ))}
+                          {fieldErrors.oldName && (
+                            <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.oldName}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            New Name (புதிய திருத்தப்பட்ட பெயர்) <span className="text-red-500">*</span>
+                          </label>
+                          <div className="relative">
+                            <User className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={formData.newName}
+                              onChange={(e) => {
+                                setFormData({ ...formData, newName: e.target.value });
+                                setFieldErrors({ ...fieldErrors, newName: '' });
+                              }}
+                              placeholder="New / Corrected Name to update"
+                              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-none"
+                            />
+                          </div>
+                          {fieldErrors.newName && (
+                            <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.newName}</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Aadhaar Card Number (Add, Remove, Head Change) */}
+                    {['add_member', 'remove_member', 'family_head_change'].includes(selectedService.formType) && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          ஆதார் கார்டு நம்பர் (Aadhaar Card Number) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Fingerprint className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            maxLength={12}
+                            value={formData.aadhaarNumber}
+                            onChange={(e) => {
+                              setFormData({ ...formData, aadhaarNumber: e.target.value.replace(/\D/g, '') });
+                              setFieldErrors({ ...fieldErrors, aadhaarNumber: '' });
+                            }}
+                            placeholder="12-digit Aadhaar Number"
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.aadhaarNumber && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.aadhaarNumber}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Smart Card Number (All services except number missing) */}
+                    {selectedService.formType !== 'number_missing' && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          ஸ்மார்ட் கார்டு நம்பர் (Smart Card Number) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            maxLength={16}
+                            value={formData.smartCardNumber}
+                            onChange={(e) => {
+                              setFormData({ ...formData, smartCardNumber: e.target.value.toUpperCase() });
+                              setFieldErrors({ ...fieldErrors, smartCardNumber: '' });
+                            }}
+                            placeholder="e.g. 33/W/0123456 or 12-digit number"
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold uppercase focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.smartCardNumber && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.smartCardNumber}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Shop Code (for Address Change) */}
+                    {selectedService.formType === 'address_change' && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Shop Code (நியாய விலைக்கடை எண்) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Store className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={formData.shopCode}
+                            onChange={(e) => {
+                              setFormData({ ...formData, shopCode: e.target.value.toUpperCase() });
+                              setFieldErrors({ ...fieldErrors, shopCode: '' });
+                            }}
+                            placeholder="e.g. 08AA012"
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold uppercase focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.shopCode && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.shopCode}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Full Address (for Address Change: தெரு மாவட்டம் தாலுகா அனைத்து) */}
+                    {selectedService.formType === 'address_change' && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Full Address (தெரு, மாவட்டம், தாலுகா அனைத்து) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                          <textarea
+                            rows={3}
+                            value={formData.fullAddress}
+                            onChange={(e) => {
+                              setFormData({ ...formData, fullAddress: e.target.value });
+                              setFieldErrors({ ...fieldErrors, fullAddress: '' });
+                            }}
+                            placeholder="கதவு எண், தெரு பெயர், கிராமம்/வார்டு, தாலுகா, மாவட்டம், பின்கோடு..."
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.fullAddress && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.fullAddress}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Address Correction: Full Address Type */}
+                    {selectedService.formType === 'address_correction' && (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          Full Address Type (முழு முகவரி விவரங்கள்) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                          <textarea
+                            rows={3}
+                            value={formData.fullAddress}
+                            onChange={(e) => {
+                              setFormData({ ...formData, fullAddress: e.target.value });
+                              setFieldErrors({ ...fieldErrors, fullAddress: '' });
+                            }}
+                            placeholder="Enter Complete Corrected Address..."
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.fullAddress && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.fullAddress}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* New Phone Number (for Mobile Link) */}
+                    {selectedService.formType === 'mobile_link' ? (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          புதிய போன் நம்பர் (New Phone Number) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="tel"
+                            maxLength={10}
+                            value={formData.newPhone}
+                            onChange={(e) => {
+                              setFormData({ ...formData, newPhone: e.target.value.replace(/\D/g, '') });
+                              setFieldErrors({ ...fieldErrors, newPhone: '' });
+                            }}
+                            placeholder="10-digit New Mobile Number"
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.newPhone && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.newPhone}</p>
+                        )}
+                      </div>
+                    ) : (
+                      /* Customer Contact Number (For all other forms) */
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1">
+                          கஸ்டமர் போன் நம்பர் (Customer Contact Number) <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="tel"
+                            maxLength={10}
+                            value={formData.customerPhone}
+                            onChange={(e) => {
+                              setFormData({ ...formData, customerPhone: e.target.value.replace(/\D/g, '') });
+                              setFieldErrors({ ...fieldErrors, customerPhone: '' });
+                            }}
+                            placeholder="10-digit Customer Mobile Number"
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-bold focus:border-emerald-500 outline-none"
+                          />
+                        </div>
+                        {fieldErrors.customerPhone && (
+                          <p className="text-[11px] text-red-600 font-bold mt-1">{fieldErrors.customerPhone}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Service Fee Summary Box */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-sm">
+                        ₹
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Service Fee / சேவைக் கட்டணம்</span>
+                        <span className="text-xs font-bold text-slate-800">Govt Portal & e-Sevai Service Charge</span>
                       </div>
                     </div>
-                  )}
-
-                  {/* Change of Address Section */}
-                  {selectedService.id === 'address-fps-change' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        New Residential Address (Door No, Street, Landmark, Pincode) <span className="text-red-500">*</span>
-                      </label>
-                      <textarea
-                        rows={2}
-                        value={formData.newAddress}
-                        onChange={(e) => setFormData({ ...formData, newAddress: e.target.value })}
-                        placeholder="Enter full new residential address for shop transfer"
-                        className="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
-                        required
-                      />
-                    </div>
-                  )}
-
-                  {/* Correction specifics */}
-                  {selectedService.category === 'corrections' && (
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
-                        Specific Change / Modification Note
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.correctionDetails}
-                        onChange={(e) => setFormData({ ...formData, correctionDetails: e.target.value })}
-                        placeholder="e.g. Change family head from deceased husband to wife, or new mobile link"
-                        className="w-full p-2.5 border border-slate-300 rounded-lg text-sm font-medium focus:border-emerald-500 outline-hidden"
-                      />
-                    </div>
-                  )}
-
-                  {/* Priority */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Processing Priority</label>
-                    <div className="flex gap-2">
-                      {['Low', 'Medium', 'High', 'Urgent'].map((lvl) => (
-                        <button
-                          key={lvl}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, priority: lvl })}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                            formData.priority === lvl
-                              ? 'bg-[#15803d] text-white border-[#15803d] shadow-xs'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {lvl}
-                        </button>
-                      ))}
+                    <div className="text-right">
+                      <span className="text-base font-black text-emerald-800 font-mono">₹{getServicePrice(selectedService.id)}</span>
+                      <span className="text-[10px] text-slate-400 block font-medium">All inclusive</span>
                     </div>
                   </div>
 
@@ -1430,7 +1654,7 @@ export const RationServicesView: React.FC = () => {
                       ) : (
                         <>
                           <Send className="w-4 h-4" />
-                          <span>Submit Application</span>
+                          <span>Pay ₹{getServicePrice(selectedService.id)} & Submit</span>
                         </>
                       )}
                     </button>
@@ -1505,7 +1729,7 @@ export const RationServicesView: React.FC = () => {
               {/* Credentials Grid */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Applicant / Head</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Applicant / Contact</span>
                   <div className="text-sm font-bold text-slate-800">{inspectRequest.applicantName}</div>
                   <div className="text-slate-500">{inspectRequest.applicantPhone}</div>
                 </div>
@@ -1513,7 +1737,7 @@ export const RationServicesView: React.FC = () => {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
                   <span className="text-[10px] uppercase font-bold text-slate-500">Identity Details</span>
                   <div className="text-sm font-mono font-bold text-emerald-800">
-                    {inspectRequest.rationCardNumber || 'New Registration'}
+                    {inspectRequest.rationCardNumber || 'Card Verification'}
                   </div>
                   {inspectRequest.maskedAadhaar && (
                     <div className="text-slate-400 text-xs font-mono">{inspectRequest.maskedAadhaar}</div>
@@ -1521,38 +1745,19 @@ export const RationServicesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Commodity Type & FPS */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Card Commodity Type</span>
-                  <div className="font-bold text-slate-800">{inspectRequest.cardType || 'PHH - Priority Household'}</div>
-                </div>
-
-                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
-                  <span className="text-[10px] uppercase font-bold text-slate-500">District & Shop</span>
-                  <div className="font-bold text-slate-800">{inspectRequest.district || 'Salem'} • {inspectRequest.fpsCode || 'General FPS'}</div>
-                </div>
-              </div>
-
-              {/* Specific notes / Member lists */}
-              {inspectRequest.members && inspectRequest.members.length > 0 && (
+              {/* Specific notes or Address Shifting */}
+              {inspectRequest.correctionDetails && (
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">Family Members Enrolled ({inspectRequest.members.length})</span>
-                  <div className="space-y-1.5 mt-1">
-                    {inspectRequest.members.map((m, idx) => (
-                      <div key={idx} className="p-2 bg-slate-50 rounded-lg border border-slate-200/60 flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-800">{m.name} ({m.relation})</span>
-                        <span className="font-mono text-slate-500">{m.aadhaarNumber ? `Aadhaar: ${m.aadhaarNumber}` : ''}</span>
-                      </div>
-                    ))}
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Request Specifics</span>
+                  <div className="p-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-800 font-medium mt-1">
+                    {inspectRequest.correctionDetails}
                   </div>
                 </div>
               )}
 
-              {/* Address Shifting Note */}
               {inspectRequest.newAddress && (
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-500">New Address for Shifting</span>
+                  <span className="text-[10px] uppercase font-bold text-slate-500">Address Details</span>
                   <div className="p-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-slate-800 font-medium mt-1">
                     {inspectRequest.newAddress}
                   </div>
@@ -1599,4 +1804,3 @@ export const RationServicesView: React.FC = () => {
     </div>
   );
 };
-

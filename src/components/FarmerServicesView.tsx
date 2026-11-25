@@ -842,7 +842,12 @@ export const FarmerServicesView: React.FC = () => {
                   <Sprout className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm sm:text-base font-black text-white">{selectedService.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm sm:text-base font-black text-white">{selectedService.name}</h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white font-mono text-xs font-black">
+                      Fee: ₹{getServicePrice(selectedService.id)}
+                    </span>
+                  </div>
                   <p className="text-xs text-emerald-200 font-medium">Tamil Nadu e-Sevai Agriculture & Revenue Form</p>
                 </div>
               </div>
@@ -1184,6 +1189,17 @@ export const FarmerServicesView: React.FC = () => {
                     />
                   </div>
 
+                  {/* Service Fee Summary Box */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-950 block">Service Fee / சேவைக் கட்டணம்</span>
+                      <span className="text-[11px] text-emerald-700">Official processing fee via UPI QR</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-black text-emerald-900">₹{getServicePrice(selectedService.id)}</span>
+                    </div>
+                  </div>
+
                   {/* Actions */}
                   <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                     <button
@@ -1206,7 +1222,7 @@ export const FarmerServicesView: React.FC = () => {
                       ) : (
                         <>
                           <Send className="w-4 h-4" />
-                          <span>Submit Application</span>
+                          <span>Pay ₹{getServicePrice(selectedService.id)} & Submit</span>
                         </>
                       )}
                     </button>

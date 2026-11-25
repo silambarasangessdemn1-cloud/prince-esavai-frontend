@@ -712,10 +712,7 @@ export const AadhaarCorrectionsView: React.FC = () => {
                           </div>
                         )}
 
-                        <div className="flex items-center justify-between pt-1">
-                          <span className="text-[10px] font-bold text-slate-500">
-                            Priority: <span className="text-slate-800">{issue.priority}</span>
-                          </span>
+                        <div className="flex items-center justify-end pt-1">
                           <button
                             onClick={() => setInspectIssue(issue)}
                             className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold cursor-pointer text-xs transition-colors shadow-2xs"
@@ -735,7 +732,6 @@ export const AadhaarCorrectionsView: React.FC = () => {
                           <th className="py-2.5 px-3">Ticket No</th>
                           <th className="py-2.5 px-3">Applicant Name</th>
                           <th className="py-2.5 px-3">Issue Type & Admin Response</th>
-                          <th className="py-2.5 px-3">Priority</th>
                           <th className="py-2.5 px-3">Status</th>
                           <th className="py-2.5 px-3 text-right">Action</th>
                         </tr>
@@ -774,7 +770,6 @@ export const AadhaarCorrectionsView: React.FC = () => {
                                 </div>
                               )}
                             </td>
-                            <td className="py-2.5 px-3 font-bold">{issue.priority}</td>
                             <td className="py-2.5 px-3">
                               <span
                                 className={`px-2 py-0.5 rounded-full font-bold text-[11px] border ${
@@ -838,24 +833,13 @@ export const AadhaarCorrectionsView: React.FC = () => {
                         <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2 py-0.5 rounded">
                           {issue.ticketNumber}
                         </span>
-                        <div className="flex items-center gap-1.5">
-                          <span
-                            className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                              issue.priority === 'High' || issue.priority === 'Urgent'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
-                          >
-                            {issue.priority}
-                          </span>
-                          <span
-                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
-                              STATUS_BADGES[issue.status] || 'bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            {issue.status}
-                          </span>
-                        </div>
+                        <span
+                          className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                            STATUS_BADGES[issue.status] || 'bg-slate-50 text-slate-700'
+                          }`}
+                        >
+                          {issue.status}
+                        </span>
                       </div>
 
                       <div>
@@ -902,7 +886,6 @@ export const AadhaarCorrectionsView: React.FC = () => {
                     <th className="py-3 px-4">Applicant</th>
                     <th className="py-3 px-4">Aadhaar (Masked)</th>
                     <th className="py-3 px-4">Service & Admin Response</th>
-                    <th className="py-3 px-4">Priority</th>
                     <th className="py-3 px-4">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -910,7 +893,7 @@ export const AadhaarCorrectionsView: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 font-medium">
                   {recentIssues.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-slate-400 font-semibold">
+                      <td colSpan={6} className="py-8 text-center text-slate-400 font-semibold">
                         No issue tickets found. Click any service card above to submit an Aadhaar correction.
                       </td>
                     </tr>
@@ -953,17 +936,6 @@ export const AadhaarCorrectionsView: React.FC = () => {
                                 Awaiting admin processing
                               </div>
                             )}
-                          </td>
-                          <td className="py-3 px-4">
-                            <span
-                              className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${
-                                issue.priority === 'High' || issue.priority === 'Urgent'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {issue.priority}
-                            </span>
                           </td>
                           <td className="py-3 px-4">
                             <span
@@ -1013,7 +985,12 @@ export const AadhaarCorrectionsView: React.FC = () => {
                   <h3 className="font-bold text-sm sm:text-base tracking-tight uppercase text-white truncate">
                     {selectedService.name}
                   </h3>
-                  <p className="text-[11px] sm:text-xs text-emerald-200 font-medium truncate">{selectedService.processingMode}</p>
+                  <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                    <p className="text-[11px] sm:text-xs text-emerald-200 font-medium truncate">{selectedService.processingMode}</p>
+                    <span className="bg-white/20 text-white border border-white/30 text-[10px] font-black px-2 py-0.5 rounded-full">
+                      Fee: ₹{getServicePrice(selectedService.id)}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -1149,24 +1126,20 @@ export const AadhaarCorrectionsView: React.FC = () => {
                     />
                   </div>
 
-                  {/* Priority */}
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Priority Level</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {['Low', 'Medium', 'High', 'Urgent'].map((lvl) => (
-                        <button
-                          key={lvl}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, priority: lvl })}
-                          className={`py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                            formData.priority === lvl
-                              ? 'bg-[#00a86b] text-white border-[#00a86b] shadow-xs'
-                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                          }`}
-                        >
-                          {lvl}
-                        </button>
-                      ))}
+                  {/* Service Fee Summary Box */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-700 text-white flex items-center justify-center font-bold text-sm">
+                        ₹
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-500 block">Service Fee / சேவைக் கட்டணம்</span>
+                        <span className="text-xs font-bold text-slate-800">Govt Portal & e-Sevai Service Charge</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-black text-emerald-800 font-mono">₹{getServicePrice(selectedService.id)}</span>
+                      <span className="text-[10px] text-slate-400 block font-medium">All inclusive</span>
                     </div>
                   </div>
 
@@ -1192,7 +1165,7 @@ export const AadhaarCorrectionsView: React.FC = () => {
                       ) : (
                         <>
                           <Send className="w-4 h-4" />
-                          <span>Submit Form</span>
+                          <span>Pay ₹{getServicePrice(selectedService.id)} & Submit</span>
                         </>
                       )}
                     </button>
@@ -1267,7 +1240,6 @@ export const AadhaarCorrectionsView: React.FC = () => {
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/60">
                   <span className="text-[10px] uppercase font-bold text-slate-500">Aadhaar (Masked)</span>
                   <div className="text-sm font-mono font-bold text-slate-800">{inspectIssue.maskedAadhaar}</div>
-                  <div className="text-slate-500">Priority: {inspectIssue.priority}</div>
                 </div>
               </div>
 

@@ -225,7 +225,18 @@ export const GenericServiceForm: React.FC<GenericServiceFormProps> = ({ service 
             </div>
           </div>
 
-          {/* Action Footer - No fee */}
+          {/* Service Fee Summary Box */}
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between gap-3">
+            <div>
+              <span className="text-xs font-bold text-emerald-950 block">Service Fee / சேவைக் கட்டணம்</span>
+              <span className="text-[11px] text-emerald-700">Official processing fee via UPI QR</span>
+            </div>
+            <div className="text-right">
+              <span className="text-lg font-black text-emerald-900">₹{getServicePrice(service.id)}</span>
+            </div>
+          </div>
+
+          {/* Action Footer */}
           <div className="pt-3 flex flex-col sm:flex-row items-center justify-end gap-3 border-t border-slate-100">
             <button
               type="button"

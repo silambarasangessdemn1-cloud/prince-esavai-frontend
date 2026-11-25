@@ -808,7 +808,12 @@ export const VehicleServicesView: React.FC = () => {
                   <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-300 block">
                     VAHAN 4.0 APPLICATION
                   </span>
-                  <h3 className="text-base sm:text-lg font-black text-white">{activeModalService.name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-base sm:text-lg font-black text-white">{activeModalService.name}</h3>
+                    <span className="px-2.5 py-0.5 rounded-full bg-white/20 text-white font-mono text-xs font-black">
+                      Fee: ₹{getServicePrice(activeModalService.id)}
+                    </span>
+                  </div>
                 </div>
               </div>
               <button
@@ -1055,34 +1060,18 @@ export const VehicleServicesView: React.FC = () => {
                     </div>
                   )}
 
-                  {/* RTO Jurisdiction & Priority */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">RTO Office Jurisdiction</label>
-                      <select
-                        value={formData.rtoOffice}
-                        onChange={(e) => setFormData({ ...formData, rtoOffice: e.target.value })}
-                        className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                      >
-                        {TN_RTO_OFFICES.map((rto) => (
-                          <option key={rto} value={rto}>{rto}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Processing Priority</label>
-                      <select
-                        value={formData.priority}
-                        onChange={(e) => setFormData({ ...formData, priority: e.target.value as any })}
-                        className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                      >
-                        <option value="Low">Low Priority (Standard)</option>
-                        <option value="Medium">Medium Priority</option>
-                        <option value="High">High Priority</option>
-                        <option value="Urgent">Urgent (Express Processing)</option>
-                      </select>
-                    </div>
+                  {/* RTO Jurisdiction */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">RTO Office Jurisdiction</label>
+                    <select
+                      value={formData.rtoOffice}
+                      onChange={(e) => setFormData({ ...formData, rtoOffice: e.target.value })}
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-lg text-xs font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
+                    >
+                      {TN_RTO_OFFICES.map((rto) => (
+                        <option key={rto} value={rto}>{rto}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Remarks */}
@@ -1095,6 +1084,17 @@ export const VehicleServicesView: React.FC = () => {
                       placeholder="Any specific requests or requirements..."
                       className="w-full p-2.5 border border-slate-300 rounded-lg text-xs font-medium bg-slate-50 focus:bg-white outline-none focus:border-emerald-500 resize-none"
                     />
+                  </div>
+
+                  {/* Service Fee Summary Box */}
+                  <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-emerald-950 block">Service Fee / சேவைக் கட்டணம்</span>
+                      <span className="text-[11px] text-emerald-700">Official processing fee via UPI QR</span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-base font-black text-emerald-900">₹{getServicePrice(activeModalService.id)}</span>
+                    </div>
                   </div>
 
                   {/* Action Buttons */}
@@ -1112,7 +1112,7 @@ export const VehicleServicesView: React.FC = () => {
                       className="px-7 py-2.5 bg-[#10b981] hover:bg-[#059669] text-white rounded-lg text-xs sm:text-sm font-black shadow-md shadow-emerald-500/20 transition-all cursor-pointer disabled:opacity-60 flex items-center gap-2"
                     >
                       {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                      <span>Submit Application</span>
+                      <span>Pay ₹{getServicePrice(activeModalService.id)} & Submit</span>
                     </button>
                   </div>
                 </form>

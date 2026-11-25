@@ -355,26 +355,6 @@ export const AadhaarIssueForm: React.FC = () => {
                   )}
                 </div>
 
-                {/* Priority */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Priority</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {(meta?.priorities ?? ['Low', 'Medium', 'High', 'Urgent']).map((p) => (
-                      <button
-                        key={p} type="button"
-                        onClick={() => setForm((prev) => ({ ...prev, priority: p }))}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
-                          form.priority === p
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 shadow-xs'
-                            : `border-slate-200 ${PRIORITY_COLORS[p] || 'bg-slate-50 text-slate-600'} hover:border-slate-300`
-                        }`}
-                      >
-                        {p}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Description */}
                 <div className="sm:col-span-2">
                   <label className="block text-xs font-bold text-slate-700 mb-1">
