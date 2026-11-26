@@ -6,11 +6,12 @@ import { voterApi, VoterRequest, VoterStatsResponse } from '../services/voterApi
 import { rationApi, RationRequest, RationStatsResponse } from '../services/rationApi';
 import { drivingApi, DrivingRequest, DrivingStatsResponse } from '../services/drivingApi';
 import { vehicleApi, VehicleRequest, VehicleStatsResponse } from '../services/vehicleApi';
-import { farmerApi, FarmerRequest, FarmerStatsResponse } from '../services/farmerApi';
 import { paymentApi } from '../services/paymentApi';
+import { syncTicketStatusToLocal } from '../utils/statusSync';
 import { AdminApplicationDetailsPage } from './AdminApplicationDetailsPage';
 import { AdminPricingView } from './AdminPricingView';
 import { AdminPaymentsView } from './AdminPaymentsView';
+import { AdminDashboardView } from './AdminDashboardView';
 import {
   ShieldCheck,
   Search,
@@ -40,7 +41,6 @@ import {
   Vote,
   Store,
   Car,
-  Sprout,
   Calendar,
   Mail,
   MapPin,
@@ -88,8 +88,8 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
 }) => {
   const { setActiveTab } = useApp();
 
-  // Active Queue Switcher ('aadhaar' vs 'pan' vs 'voter' vs 'ration' vs 'driving' vs 'vehicle')
-  const [internalActiveQueue, setInternalActiveQueue] = useState<AdminQueue>('aadhaar');
+  // Active Queue Switcher ('dashboard' vs 'aadhaar' vs 'pan' vs 'voter' vs 'ration' vs 'driving' vs 'vehicle')
+  const [internalActiveQueue, setInternalActiveQueue] = useState<AdminQueue>('dashboard');
   const activeQueue = propActiveQueue !== undefined ? propActiveQueue : internalActiveQueue;
   const setActiveQueue = propSetActiveQueue || setInternalActiveQueue;
 
@@ -127,11 +127,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   const [vehicleRequests, setVehicleRequests] = useState<VehicleRequest[]>([]);
   const [vehicleStats, setVehicleStats] = useState<VehicleStatsResponse | null>(null);
   const [vehiclePagination, setVehiclePagination] = useState<Pagination | null>(null);
-
-  // Farmer Queue State
-  const [farmerRequests, setFarmerRequests] = useState<FarmerRequest[]>([]);
-  const [farmerStats, setFarmerStats] = useState<FarmerStatsResponse | null>(null);
-  const [farmerPagination, setFarmerPagination] = useState<Pagination | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -179,13 +174,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   const [adminVehicleAck, setAdminVehicleAck] = useState('');
   const [adminVehicleSlot, setAdminVehicleSlot] = useState('');
   const [adminVehicleChallanRef, setAdminVehicleChallanRef] = useState('');
-
-  // Selected Farmer Request for Modal
-  const [activeFarmerTicket, setActiveFarmerTicket] = useState<FarmerRequest | null>(null);
-  const [adminFarmerStatus, setAdminFarmerStatus] = useState('');
-  const [adminFarmerRemarks, setAdminFarmerRemarks] = useState('');
-  const [adminFarmerAck, setAdminFarmerAck] = useState('');
-  const [adminFarmerInspectionDate, setAdminFarmerInspectionDate] = useState('');
 
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -342,27 +330,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       if (vehStatsRes.success && vehStatsRes.data) {
         setVehicleStats(vehStatsRes.data);
       }
-    } else {
-      const [farmRes, farmStatsRes] = await Promise.all([
-        farmerApi.listRequests({
-          page,
-          limit: 15,
-          search: search.trim() || undefined,
-          status: effectiveStatus || undefined,
-          scope: 'all',
-        }),
-        farmerApi.getStats('all'),
-      ]);
-
-      if (farmRes.success && Array.isArray(farmRes.data)) {
-        setFarmerRequests(farmRes.data);
-        if (farmRes.meta) {
-          setFarmerPagination(farmRes.meta);
-        }
-      }
-      if (farmStatsRes.success && farmStatsRes.data) {
-        setFarmerStats(farmStatsRes.data);
-      }
     }
 
     setIsLoading(false);
@@ -372,14 +339,13 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
   // Load all queue totals to keep sidebar badges 100% synchronized
   const loadAllQueueCounts = useCallback(async () => {
     try {
-      const [aStats, pStats, vStats, rStats, dStats, vehStats, farmStats, payData] = await Promise.all([
+      const [aStats, pStats, vStats, rStats, dStats, vehStats, payData] = await Promise.all([
         aadhaarApi.getStats({ scope: 'all' }),
         panApi.getStats({ scope: 'all' }),
         voterApi.getStats({ scope: 'all' }),
         rationApi.getStats({ scope: 'all' }),
         drivingApi.getStats({ scope: 'all' }),
         vehicleApi.getStats({ scope: 'all' }),
-        farmerApi.getStats('all'),
         paymentApi.getAllPayments(),
       ]);
 
@@ -390,7 +356,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         ration: rStats.success && rStats.data ? rStats.data.total : 0,
         driving: dStats.success && dStats.data ? dStats.data.total : 0,
         vehicle: vehStats.success && vehStats.data ? vehStats.data.total : 0,
-        farmer: farmStats.success && farmStats.data ? farmStats.data.total : 0,
         payments: payData?.stats?.pending || 0,
         pricing: 44,
         total: 0,
@@ -401,8 +366,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         counts.voter +
         counts.ration +
         counts.driving +
-        counts.vehicle +
-        counts.farmer;
+        counts.vehicle;
 
       if (onCountsUpdate) {
         onCountsUpdate(counts);
@@ -495,7 +459,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     setActiveVoterTicket(null);
     setActiveRationTicket(null);
     setActiveDrivingTicket(null);
-    setActiveFarmerTicket(null);
     setAdminVehicleStatus(req.status);
     setAdminVehicleRemarks(req.resolutionRemarks || '');
     setAdminVehicleAck(req.vahanAckNumber || '');
@@ -504,24 +467,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     setActionSuccessMsg('');
     setActionErrorMsg('');
   };
-
-  // Open Farmer Ticket Modal
-  const openFarmerActionModal = (req: FarmerRequest) => {
-    setActiveFarmerTicket(req);
-    setActiveTicket(null);
-    setActivePanTicket(null);
-    setActiveVoterTicket(null);
-    setActiveRationTicket(null);
-    setActiveDrivingTicket(null);
-    setActiveVehicleTicket(null);
-    setAdminFarmerStatus(req.status);
-    setAdminFarmerRemarks(req.resolutionRemarks || '');
-    setAdminFarmerAck(req.officialAckNumber || '');
-    setAdminFarmerInspectionDate(req.fieldInspectionDate ? new Date(req.fieldInspectionDate).toISOString().substring(0, 10) : '');
-    setActionSuccessMsg('');
-    setActionErrorMsg('');
-  };
-
   // Submit Aadhaar Status Update
   const handleStatusUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -537,6 +482,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     if (res.success && res.data) {
       setActionSuccessMsg(`Status successfully updated to "${adminStatus}"!`);
       setActiveTicket(res.data.issue);
+      syncTicketStatusToLocal(activeTicket.ticketNumber || activeTicket._id, adminStatus, adminRemarks);
       loadRequests(true);
     } else {
       setActionErrorMsg(res.message || 'Failed to update status.');
@@ -563,6 +509,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     if (res.success && res.data) {
       setActionSuccessMsg(`PAN Application status updated to "${adminPanStatus}"!`);
       setActivePanTicket(res.data.request);
+      syncTicketStatusToLocal(activePanTicket.ticketNumber || activePanTicket._id, adminPanStatus, adminPanRemarks, adminPanAck);
       loadRequests(true);
     } else {
       setActionErrorMsg(res.message || 'Failed to update PAN status.');
@@ -589,6 +536,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     if (res.success && res.data) {
       setActionSuccessMsg(`Voter Application status updated to "${adminVoterStatus}"!`);
       setActiveVoterTicket(res.data.request);
+      syncTicketStatusToLocal(activeVoterTicket.ticketNumber || activeVoterTicket._id, adminVoterStatus, adminVoterRemarks, adminVoterEciRef);
       loadRequests(true);
     } else {
       setActionErrorMsg(res.message || 'Failed to update Voter application status.');
@@ -614,6 +562,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     if (res.success && res.data) {
       setActionSuccessMsg(`Ration Application status updated to "${adminRationStatus}"!`);
       setActiveRationTicket(res.data);
+      syncTicketStatusToLocal(activeRationTicket.ticketNumber || activeRationTicket._id, adminRationStatus, adminRationRemarks, adminRationAck);
       loadRequests(true);
     } else {
       setActionErrorMsg(res.message || 'Failed to update Ration application status.');
@@ -640,6 +589,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     if (res.success && res.data) {
       setActionSuccessMsg(`Driving License application status updated to "${adminDrivingStatus}"!`);
       setActiveDrivingTicket(res.data);
+      syncTicketStatusToLocal(activeDrivingTicket.ticketNumber || activeDrivingTicket._id, adminDrivingStatus, adminDrivingRemarks, adminDrivingAck);
       loadRequests(true);
     } else {
       setActionErrorMsg(res.message || 'Failed to update Driving License application status.');
@@ -667,40 +617,14 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     if (res.success && res.data) {
       setActionSuccessMsg(`Vehicle / Vahan application status updated to "${adminVehicleStatus}"!`);
       setActiveVehicleTicket(res.data);
+      syncTicketStatusToLocal(activeVehicleTicket.ticketNumber || activeVehicleTicket._id, adminVehicleStatus, adminVehicleRemarks, adminVehicleAck);
       loadRequests(true);
     } else {
       setActionErrorMsg(res.message || 'Failed to update Vehicle application status.');
     }
   };
-
-  // Submit Farmer Status Update
-  const handleFarmerStatusUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!activeFarmerTicket) return;
-
-    setIsUpdatingStatus(true);
-    setActionSuccessMsg('');
-    setActionErrorMsg('');
-
-    const res = await farmerApi.updateStatus(activeFarmerTicket._id, {
-      status: adminFarmerStatus,
-      resolutionRemarks: adminFarmerRemarks,
-      officialAckNumber: adminFarmerAck,
-      fieldInspectionDate: adminFarmerInspectionDate || undefined,
-    });
-    setIsUpdatingStatus(false);
-
-    if (res.success && res.data) {
-      setActionSuccessMsg(`Farmer service application status updated to "${adminFarmerStatus}"!`);
-      setActiveFarmerTicket(res.data);
-      loadRequests(true);
-    } else {
-      setActionErrorMsg(res.message || 'Failed to update Farmer application status.');
-    }
-  };
-
   // Admin Delete Ticket
-  const handleDeleteTicket = async (id: string, queueType: 'aadhaar' | 'pan' | 'voter' | 'ration' | 'driving' | 'vehicle' | 'farmer') => {
+  const handleDeleteTicket = async (id: string, queueType: 'aadhaar' | 'pan' | 'voter' | 'ration' | 'driving' | 'vehicle') => {
     if (!confirm('Are you sure you want to permanently delete this request ticket?')) return;
     let res;
     if (queueType === 'pan') res = await panApi.deleteRequest(id);
@@ -708,7 +632,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
     else if (queueType === 'ration') res = await rationApi.deleteRequest(id);
     else if (queueType === 'driving') res = await drivingApi.deleteRequest(id);
     else if (queueType === 'vehicle') res = await vehicleApi.deleteRequest(id);
-    else if (queueType === 'farmer') res = await farmerApi.deleteRequest(id);
     else res = await aadhaarApi.deleteIssue(id);
 
     if (res.success) {
@@ -717,9 +640,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       if (activeVoterTicket && activeVoterTicket._id === id) setActiveVoterTicket(null);
       if (activeRationTicket && activeRationTicket._id === id) setActiveRationTicket(null);
       if (activeDrivingTicket && activeDrivingTicket._id === id) setActiveDrivingTicket(null);
-      if (activeVehicleTicket && activeVehicleTicket._id === id) setActiveVehicleTicket(null);
-      if (activeFarmerTicket && activeFarmerTicket._id === id) setActiveFarmerTicket(null);
-      loadRequests(true);
+      if (activeVehicleTicket && activeVehicleTicket._id === id) setActiveVehicleTicket(null);loadRequests(true);
     } else {
       alert(res.message || 'Could not delete ticket.');
     }
@@ -738,7 +659,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       ? (drivingStats as any)
       : activeQueue === 'vehicle'
       ? (vehicleStats as any)
-      : (farmerStats as any);
+      : null;
 
   const currentPagination =
     activeQueue === 'aadhaar'
@@ -753,7 +674,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       ? drivingPagination
       : activeQueue === 'vehicle'
       ? vehiclePagination
-      : farmerPagination;
+      : null;
 
   // Render Full Dedicated Application Details Page if a record is selected
   if (selectedRecord) {
@@ -770,7 +691,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         ? drivingRequests
         : selectedRecord.type === 'vehicle'
         ? vehicleRequests
-        : farmerRequests;
+        : [];
 
     return (
       <AdminApplicationDetailsPage
@@ -784,6 +705,11 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
         }
       />
     );
+  }
+
+  // Dedicated Executive Earnings & Services Dashboard View
+  if (activeQueue === 'dashboard') {
+    return <AdminDashboardView onNavigateQueue={(q) => setActiveQueue(q)} />;
   }
 
   // Dedicated Service Pricing Portal View
@@ -814,7 +740,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
               {activeQueue === 'ration' && <Store className="w-7 h-7" />}
               {activeQueue === 'driving' && <ShieldCheck className="w-7 h-7" />}
               {activeQueue === 'vehicle' && <Car className="w-7 h-7" />}
-              {activeQueue === 'farmer' && <Sprout className="w-7 h-7" />}
             </div>
             <div>
               <div className="flex items-center gap-2.5">
@@ -825,7 +750,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
                   {activeQueue === 'ration' && 'Ration Card (TNePDS) Queue'}
                   {activeQueue === 'driving' && 'Driving License (Sarathi) Queue'}
                   {activeQueue === 'vehicle' && 'Vehicle Services (Vahan) Queue'}
-                  {activeQueue === 'farmer' && 'Farmer Services (Uzhavan) Queue'}
                 </h1>
                 <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs uppercase tracking-wider flex items-center gap-1.5 shrink-0">
                   <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
@@ -1639,127 +1563,7 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
               </table>
             </div>
           )
-        ) : (
-          /* FARMER / UZHAVAN TABLE */
-          farmerRequests.length === 0 ? (
-            <div className="py-20 text-center space-y-3">
-              <Sprout className="w-8 h-8 text-slate-400 mx-auto" />
-              <h3 className="text-base font-black text-slate-800">No Farmer / Uzhavan Applications Found</h3>
-              <p className="text-xs text-slate-500">Incoming PM-KISAN, e-Patta & Chitta, Crop Insurance, and Subsidy applications will list here.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-700 font-bold uppercase tracking-wider border-b border-slate-200/80">
-                  <tr>
-                    <th className="py-3 px-4">Ticket ID</th>
-                    <th className="py-3 px-4">Scheme / Service</th>
-                    <th className="py-3 px-4">Farmer & Mobile</th>
-                    <th className="py-3 px-4">Revenue Land Details</th>
-                    <th className="py-3 px-4">Crop & Season</th>
-                    <th className="py-3 px-4">Ack / Inspection</th>
-                    <th className="py-3 px-4">Status</th>
-                    <th className="py-3 px-4">Submitted At</th>
-                    <th className="py-3 px-4 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 font-medium">
-                  {farmerRequests.map((req) => {
-                    const statusInfo = STATUS_CONFIG[req.status] || { badge: 'bg-slate-100 text-slate-700' };
-                    return (
-                      <tr key={req._id} className="hover:bg-slate-50/80 transition-colors">
-                        <td
-                          onClick={() => handleViewFullDetails(req, 'farmer')}
-                          className="py-3 px-4 font-mono font-bold text-emerald-800 hover:text-emerald-600 hover:underline cursor-pointer"
-                          title="Click to view full application details"
-                        >
-                          {req.ticketNumber}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-900 max-w-xs">{req.serviceType}</div>
-                          {req.farmerCategory && (
-                            <span className="inline-block mt-0.5 bg-emerald-50 text-emerald-800 px-1.5 py-0.2 rounded text-[10px] font-bold border border-emerald-200">
-                              {req.farmerCategory}
-                            </span>
-                          )}
-                        </td>
-                        <td
-                          onClick={() => handleViewFullDetails(req, 'farmer')}
-                          className="py-3 px-4 cursor-pointer group hover:bg-emerald-50/70 transition-colors rounded-lg"
-                          title="Click to view full farmer profile"
-                        >
-                          <div className="font-bold text-slate-900 group-hover:text-emerald-700 flex items-center gap-1.5">
-                            <span>{req.farmerName}</span>
-                            <Eye className="w-3.5 h-3.5 text-slate-300 group-hover:text-emerald-600 transition-colors" />
-                          </div>
-                          <div className="text-[11px] text-slate-400 font-mono group-hover:text-emerald-600/70">{req.contactNumber}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-semibold text-slate-900">{req.district} ({req.taluk})</div>
-                          <div className="text-[11px] text-slate-500 font-mono">
-                            {req.village} • {req.pattaNumber ? `Patta: ${req.pattaNumber}` : ''} {req.surveyNumber ? `Sy: ${req.surveyNumber}` : ''}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="font-bold text-slate-800">{req.cropName}</div>
-                          <div className="text-[11px] text-slate-500">{req.season}</div>
-                        </td>
-                        <td className="py-3 px-4 font-mono">
-                          {req.officialAckNumber ? (
-                            <div className="font-bold text-emerald-900 bg-lime-50 border border-lime-200 px-2 py-0.5 rounded inline-block text-[11px]">
-                              {req.officialAckNumber}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400">---</span>
-                          )}
-                          {req.fieldInspectionDate && (
-                            <div className="text-[10px] text-slate-500 mt-0.5 flex items-center gap-1 font-sans">
-                              <Calendar className="w-3 h-3 text-emerald-600" />
-                              <span>Insp: {new Date(req.fieldInspectionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2.5 py-0.5 rounded-full text-[11px] border font-bold ${statusInfo.badge}`}>
-                            {req.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-slate-500 font-medium whitespace-nowrap">
-                          {new Date(req.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td className="py-3 px-4 text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-1.5">
-                            <button
-                              onClick={() => handleViewFullDetails(req, 'farmer')}
-                              className="p-1.5 text-slate-500 hover:text-emerald-700 rounded-lg hover:bg-emerald-50 transition-colors cursor-pointer"
-                              title="View Full Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => openFarmerActionModal(req)}
-                              className="px-3 py-1.5 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-2xs"
-                            >
-                              <SlidersHorizontal className="w-3.5 h-3.5" />
-                              <span>Process</span>
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTicket(req._id, 'farmer')}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )
-        )}
+        ) : null}
 
         {/* Pagination controls */}
         {currentPagination && currentPagination.totalPages > 1 && (
@@ -1905,183 +1709,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       )}
 
 
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PROCESS FARMER / UZHAVAN TICKET
-         ───────────────────────────────────────────────────────────────── */}
-      {activeFarmerTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0 border border-emerald-500/30">
-                  <Sprout className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-white/20 px-2 py-0.5 rounded text-white">
-                      {activeFarmerTicket.ticketNumber}
-                    </span>
-                    <span className="text-[10px] uppercase font-black bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30">
-                      UZHAVAN SERVICE
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-black text-white mt-1">
-                    Process Farmer & Agriculture Application
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveFarmerTicket(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{actionSuccessMsg}</span>
-                </div>
-              )}
-
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{actionErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Name</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.farmerName}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.contactNumber}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Scheme Requested</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">{activeFarmerTicket.serviceType}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Jurisdiction</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {activeFarmerTicket.district} ({activeFarmerTicket.taluk})
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta / Survey</span>
-                  <div className="font-mono text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.pattaNumber ? `Patta: ${activeFarmerTicket.pattaNumber}` : ''} {activeFarmerTicket.surveyNumber ? `Sy: ${activeFarmerTicket.surveyNumber}` : '---'}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crop & Season</span>
-                  <div className="text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.cropName} • {activeFarmerTicket.season}
-                  </div>
-                </div>
-              </div>
-
-              {activeFarmerTicket.schemeSpecificNotes && (
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Citizen Specific Notes:</span>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed font-medium mt-1">
-                    {activeFarmerTicket.schemeSpecificNotes}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Form */}
-              <form onSubmit={handleFarmerStatusUpdate} className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Uzhavan / Agri Department Processing</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Update Status <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={adminFarmerStatus}
-                      onChange={(e) => setAdminFarmerStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    >
-                      <option value="Submitted">Submitted (Received)</option>
-                      <option value="Under Review">Under Review (Scrutiny)</option>
-                      <option value="Field Inspection Scheduled">Field Inspection Scheduled</option>
-                      <option value="Verified">Verified by VAO / Agri Officer</option>
-                      <option value="Approved">Approved (Subsidy / Pass Issued)</option>
-                      <option value="Resolved">Resolved / Completed</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Official Uzhavan / Revenue Ack No
-                    </label>
-                    <input
-                      type="text"
-                      value={adminFarmerAck}
-                      onChange={(e) => setAdminFarmerAck(e.target.value)}
-                      placeholder="e.g. UZHAVAN-2026-8912"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Field Inspection / Land Verification Date (If applicable)
-                  </label>
-                  <input
-                    type="date"
-                    value={adminFarmerInspectionDate}
-                    onChange={(e) => setAdminFarmerInspectionDate(e.target.value)}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Official Admin Remarks / Citizen Response Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={adminFarmerRemarks}
-                    onChange={(e) => setAdminFarmerRemarks(e.target.value)}
-                    placeholder="Enter official resolution notes that will be prominently highlighted in green on the citizen portal..."
-                    className="w-full p-3 border border-slate-300 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-800 outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStatus}
-                    className="px-6 py-2 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save Farmer Status & Send Response</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PAN ACTION PROCESSOR (WITH NSDL / UTIITSL ACK NO)
-         ───────────────────────────────────────────────────────────────── */}
       {activePanTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
@@ -2227,183 +1854,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       )}
 
 
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PROCESS FARMER / UZHAVAN TICKET
-         ───────────────────────────────────────────────────────────────── */}
-      {activeFarmerTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0 border border-emerald-500/30">
-                  <Sprout className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-white/20 px-2 py-0.5 rounded text-white">
-                      {activeFarmerTicket.ticketNumber}
-                    </span>
-                    <span className="text-[10px] uppercase font-black bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30">
-                      UZHAVAN SERVICE
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-black text-white mt-1">
-                    Process Farmer & Agriculture Application
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveFarmerTicket(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{actionSuccessMsg}</span>
-                </div>
-              )}
-
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{actionErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Name</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.farmerName}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.contactNumber}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Scheme Requested</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">{activeFarmerTicket.serviceType}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Jurisdiction</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {activeFarmerTicket.district} ({activeFarmerTicket.taluk})
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta / Survey</span>
-                  <div className="font-mono text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.pattaNumber ? `Patta: ${activeFarmerTicket.pattaNumber}` : ''} {activeFarmerTicket.surveyNumber ? `Sy: ${activeFarmerTicket.surveyNumber}` : '---'}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crop & Season</span>
-                  <div className="text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.cropName} • {activeFarmerTicket.season}
-                  </div>
-                </div>
-              </div>
-
-              {activeFarmerTicket.schemeSpecificNotes && (
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Citizen Specific Notes:</span>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed font-medium mt-1">
-                    {activeFarmerTicket.schemeSpecificNotes}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Form */}
-              <form onSubmit={handleFarmerStatusUpdate} className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Uzhavan / Agri Department Processing</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Update Status <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={adminFarmerStatus}
-                      onChange={(e) => setAdminFarmerStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    >
-                      <option value="Submitted">Submitted (Received)</option>
-                      <option value="Under Review">Under Review (Scrutiny)</option>
-                      <option value="Field Inspection Scheduled">Field Inspection Scheduled</option>
-                      <option value="Verified">Verified by VAO / Agri Officer</option>
-                      <option value="Approved">Approved (Subsidy / Pass Issued)</option>
-                      <option value="Resolved">Resolved / Completed</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Official Uzhavan / Revenue Ack No
-                    </label>
-                    <input
-                      type="text"
-                      value={adminFarmerAck}
-                      onChange={(e) => setAdminFarmerAck(e.target.value)}
-                      placeholder="e.g. UZHAVAN-2026-8912"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Field Inspection / Land Verification Date (If applicable)
-                  </label>
-                  <input
-                    type="date"
-                    value={adminFarmerInspectionDate}
-                    onChange={(e) => setAdminFarmerInspectionDate(e.target.value)}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Official Admin Remarks / Citizen Response Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={adminFarmerRemarks}
-                    onChange={(e) => setAdminFarmerRemarks(e.target.value)}
-                    placeholder="Enter official resolution notes that will be prominently highlighted in green on the citizen portal..."
-                    className="w-full p-3 border border-slate-300 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-800 outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStatus}
-                    className="px-6 py-2 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save Farmer Status & Send Response</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: VOTER ACTION PROCESSOR (WITH ECI NVSP REF NO)
-         ───────────────────────────────────────────────────────────────── */}
       {activeVoterTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
@@ -2553,183 +2003,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       )}
 
 
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PROCESS FARMER / UZHAVAN TICKET
-         ───────────────────────────────────────────────────────────────── */}
-      {activeFarmerTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0 border border-emerald-500/30">
-                  <Sprout className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-white/20 px-2 py-0.5 rounded text-white">
-                      {activeFarmerTicket.ticketNumber}
-                    </span>
-                    <span className="text-[10px] uppercase font-black bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30">
-                      UZHAVAN SERVICE
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-black text-white mt-1">
-                    Process Farmer & Agriculture Application
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveFarmerTicket(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{actionSuccessMsg}</span>
-                </div>
-              )}
-
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{actionErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Name</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.farmerName}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.contactNumber}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Scheme Requested</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">{activeFarmerTicket.serviceType}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Jurisdiction</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {activeFarmerTicket.district} ({activeFarmerTicket.taluk})
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta / Survey</span>
-                  <div className="font-mono text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.pattaNumber ? `Patta: ${activeFarmerTicket.pattaNumber}` : ''} {activeFarmerTicket.surveyNumber ? `Sy: ${activeFarmerTicket.surveyNumber}` : '---'}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crop & Season</span>
-                  <div className="text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.cropName} • {activeFarmerTicket.season}
-                  </div>
-                </div>
-              </div>
-
-              {activeFarmerTicket.schemeSpecificNotes && (
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Citizen Specific Notes:</span>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed font-medium mt-1">
-                    {activeFarmerTicket.schemeSpecificNotes}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Form */}
-              <form onSubmit={handleFarmerStatusUpdate} className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Uzhavan / Agri Department Processing</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Update Status <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={adminFarmerStatus}
-                      onChange={(e) => setAdminFarmerStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    >
-                      <option value="Submitted">Submitted (Received)</option>
-                      <option value="Under Review">Under Review (Scrutiny)</option>
-                      <option value="Field Inspection Scheduled">Field Inspection Scheduled</option>
-                      <option value="Verified">Verified by VAO / Agri Officer</option>
-                      <option value="Approved">Approved (Subsidy / Pass Issued)</option>
-                      <option value="Resolved">Resolved / Completed</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Official Uzhavan / Revenue Ack No
-                    </label>
-                    <input
-                      type="text"
-                      value={adminFarmerAck}
-                      onChange={(e) => setAdminFarmerAck(e.target.value)}
-                      placeholder="e.g. UZHAVAN-2026-8912"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Field Inspection / Land Verification Date (If applicable)
-                  </label>
-                  <input
-                    type="date"
-                    value={adminFarmerInspectionDate}
-                    onChange={(e) => setAdminFarmerInspectionDate(e.target.value)}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Official Admin Remarks / Citizen Response Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={adminFarmerRemarks}
-                    onChange={(e) => setAdminFarmerRemarks(e.target.value)}
-                    placeholder="Enter official resolution notes that will be prominently highlighted in green on the citizen portal..."
-                    className="w-full p-3 border border-slate-300 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-800 outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStatus}
-                    className="px-6 py-2 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save Farmer Status & Send Response</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: RATION CARD ACTION PROCESSOR
-         ───────────────────────────────────────────────────────────────── */}
       {/* ─────────────────────────────────────────────────────────────────
           RATION ACTION PROCESSOR MODAL
          ───────────────────────────────────────────────────────────────── */}
@@ -2896,183 +2169,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       )}
 
 
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PROCESS FARMER / UZHAVAN TICKET
-         ───────────────────────────────────────────────────────────────── */}
-      {activeFarmerTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0 border border-emerald-500/30">
-                  <Sprout className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-white/20 px-2 py-0.5 rounded text-white">
-                      {activeFarmerTicket.ticketNumber}
-                    </span>
-                    <span className="text-[10px] uppercase font-black bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30">
-                      UZHAVAN SERVICE
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-black text-white mt-1">
-                    Process Farmer & Agriculture Application
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveFarmerTicket(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{actionSuccessMsg}</span>
-                </div>
-              )}
-
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{actionErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Name</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.farmerName}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.contactNumber}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Scheme Requested</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">{activeFarmerTicket.serviceType}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Jurisdiction</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {activeFarmerTicket.district} ({activeFarmerTicket.taluk})
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta / Survey</span>
-                  <div className="font-mono text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.pattaNumber ? `Patta: ${activeFarmerTicket.pattaNumber}` : ''} {activeFarmerTicket.surveyNumber ? `Sy: ${activeFarmerTicket.surveyNumber}` : '---'}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crop & Season</span>
-                  <div className="text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.cropName} • {activeFarmerTicket.season}
-                  </div>
-                </div>
-              </div>
-
-              {activeFarmerTicket.schemeSpecificNotes && (
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Citizen Specific Notes:</span>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed font-medium mt-1">
-                    {activeFarmerTicket.schemeSpecificNotes}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Form */}
-              <form onSubmit={handleFarmerStatusUpdate} className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Uzhavan / Agri Department Processing</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Update Status <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={adminFarmerStatus}
-                      onChange={(e) => setAdminFarmerStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    >
-                      <option value="Submitted">Submitted (Received)</option>
-                      <option value="Under Review">Under Review (Scrutiny)</option>
-                      <option value="Field Inspection Scheduled">Field Inspection Scheduled</option>
-                      <option value="Verified">Verified by VAO / Agri Officer</option>
-                      <option value="Approved">Approved (Subsidy / Pass Issued)</option>
-                      <option value="Resolved">Resolved / Completed</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Official Uzhavan / Revenue Ack No
-                    </label>
-                    <input
-                      type="text"
-                      value={adminFarmerAck}
-                      onChange={(e) => setAdminFarmerAck(e.target.value)}
-                      placeholder="e.g. UZHAVAN-2026-8912"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Field Inspection / Land Verification Date (If applicable)
-                  </label>
-                  <input
-                    type="date"
-                    value={adminFarmerInspectionDate}
-                    onChange={(e) => setAdminFarmerInspectionDate(e.target.value)}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Official Admin Remarks / Citizen Response Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={adminFarmerRemarks}
-                    onChange={(e) => setAdminFarmerRemarks(e.target.value)}
-                    placeholder="Enter official resolution notes that will be prominently highlighted in green on the citizen portal..."
-                    className="w-full p-3 border border-slate-300 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-800 outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStatus}
-                    className="px-6 py-2 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save Farmer Status & Send Response</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────
-          DRIVING LICENSE ACTION PROCESSOR MODAL
-         ───────────────────────────────────────────────────────────────── */}
       {activeDrivingTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
@@ -3249,183 +2345,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
       )}
 
 
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PROCESS FARMER / UZHAVAN TICKET
-         ───────────────────────────────────────────────────────────────── */}
-      {activeFarmerTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0 border border-emerald-500/30">
-                  <Sprout className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-white/20 px-2 py-0.5 rounded text-white">
-                      {activeFarmerTicket.ticketNumber}
-                    </span>
-                    <span className="text-[10px] uppercase font-black bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30">
-                      UZHAVAN SERVICE
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-black text-white mt-1">
-                    Process Farmer & Agriculture Application
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveFarmerTicket(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{actionSuccessMsg}</span>
-                </div>
-              )}
-
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{actionErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Name</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.farmerName}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.contactNumber}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Scheme Requested</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">{activeFarmerTicket.serviceType}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Jurisdiction</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {activeFarmerTicket.district} ({activeFarmerTicket.taluk})
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta / Survey</span>
-                  <div className="font-mono text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.pattaNumber ? `Patta: ${activeFarmerTicket.pattaNumber}` : ''} {activeFarmerTicket.surveyNumber ? `Sy: ${activeFarmerTicket.surveyNumber}` : '---'}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crop & Season</span>
-                  <div className="text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.cropName} • {activeFarmerTicket.season}
-                  </div>
-                </div>
-              </div>
-
-              {activeFarmerTicket.schemeSpecificNotes && (
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Citizen Specific Notes:</span>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed font-medium mt-1">
-                    {activeFarmerTicket.schemeSpecificNotes}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Form */}
-              <form onSubmit={handleFarmerStatusUpdate} className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Uzhavan / Agri Department Processing</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Update Status <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={adminFarmerStatus}
-                      onChange={(e) => setAdminFarmerStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    >
-                      <option value="Submitted">Submitted (Received)</option>
-                      <option value="Under Review">Under Review (Scrutiny)</option>
-                      <option value="Field Inspection Scheduled">Field Inspection Scheduled</option>
-                      <option value="Verified">Verified by VAO / Agri Officer</option>
-                      <option value="Approved">Approved (Subsidy / Pass Issued)</option>
-                      <option value="Resolved">Resolved / Completed</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Official Uzhavan / Revenue Ack No
-                    </label>
-                    <input
-                      type="text"
-                      value={adminFarmerAck}
-                      onChange={(e) => setAdminFarmerAck(e.target.value)}
-                      placeholder="e.g. UZHAVAN-2026-8912"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Field Inspection / Land Verification Date (If applicable)
-                  </label>
-                  <input
-                    type="date"
-                    value={adminFarmerInspectionDate}
-                    onChange={(e) => setAdminFarmerInspectionDate(e.target.value)}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Official Admin Remarks / Citizen Response Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={adminFarmerRemarks}
-                    onChange={(e) => setAdminFarmerRemarks(e.target.value)}
-                    placeholder="Enter official resolution notes that will be prominently highlighted in green on the citizen portal..."
-                    className="w-full p-3 border border-slate-300 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-800 outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStatus}
-                    className="px-6 py-2 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save Farmer Status & Send Response</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─────────────────────────────────────────────────────────────────
-          VEHICLE / VAHAN ACTION PROCESSOR MODAL
-         ───────────────────────────────────────────────────────────────── */}
       {activeVehicleTicket && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-2xs animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
@@ -3619,181 +2538,6 @@ export const AdminPortalView: React.FC<AdminPortalViewProps> = ({
           </div>
         </div>
       )}
-
-      {/* ─────────────────────────────────────────────────────────────────
-          MODAL: PROCESS FARMER / UZHAVAN TICKET
-         ───────────────────────────────────────────────────────────────── */}
-      {activeFarmerTicket && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-2xs animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 w-full max-w-2xl overflow-hidden max-h-[92vh] flex flex-col">
-            <div className="bg-[#0f172a] text-white px-6 py-4 flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black shrink-0 border border-emerald-500/30">
-                  <Sprout className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-black bg-white/20 px-2 py-0.5 rounded text-white">
-                      {activeFarmerTicket.ticketNumber}
-                    </span>
-                    <span className="text-[10px] uppercase font-black bg-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded border border-emerald-400/30">
-                      UZHAVAN SERVICE
-                    </span>
-                  </div>
-                  <h3 className="text-sm sm:text-base font-black text-white mt-1">
-                    Process Farmer & Agriculture Application
-                  </h3>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setActiveFarmerTicket(null)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center cursor-pointer transition-colors"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="p-6 overflow-y-auto space-y-5 text-xs sm:text-sm">
-              {actionSuccessMsg && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{actionSuccessMsg}</span>
-                </div>
-              )}
-
-              {actionErrorMsg && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-semibold flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>{actionErrorMsg}</span>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 border border-slate-200/80 rounded-xl">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Name</span>
-                  <div className="font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.farmerName}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Contact Phone</span>
-                  <div className="font-mono font-bold text-slate-900 text-sm mt-0.5">{activeFarmerTicket.contactNumber}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Scheme Requested</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">{activeFarmerTicket.serviceType}</div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Jurisdiction</span>
-                  <div className="font-bold text-slate-800 text-xs mt-0.5">
-                    {activeFarmerTicket.district} ({activeFarmerTicket.taluk})
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta / Survey</span>
-                  <div className="font-mono text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.pattaNumber ? `Patta: ${activeFarmerTicket.pattaNumber}` : ''} {activeFarmerTicket.surveyNumber ? `Sy: ${activeFarmerTicket.surveyNumber}` : '---'}
-                  </div>
-                </div>
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Crop & Season</span>
-                  <div className="text-xs mt-0.5 text-slate-700">
-                    {activeFarmerTicket.cropName} • {activeFarmerTicket.season}
-                  </div>
-                </div>
-              </div>
-
-              {activeFarmerTicket.schemeSpecificNotes && (
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700">Citizen Specific Notes:</span>
-                  <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 leading-relaxed font-medium mt-1">
-                    {activeFarmerTicket.schemeSpecificNotes}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Form */}
-              <form onSubmit={handleFarmerStatusUpdate} className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl space-y-4">
-                <div className="flex items-center gap-2 text-xs font-black text-emerald-900 uppercase tracking-wide">
-                  <Sparkles className="w-4 h-4 text-emerald-600" />
-                  <span>Uzhavan / Agri Department Processing</span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Update Status <span className="text-rose-500">*</span>
-                    </label>
-                    <select
-                      value={adminFarmerStatus}
-                      onChange={(e) => setAdminFarmerStatus(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    >
-                      <option value="Submitted">Submitted (Received)</option>
-                      <option value="Under Review">Under Review (Scrutiny)</option>
-                      <option value="Field Inspection Scheduled">Field Inspection Scheduled</option>
-                      <option value="Verified">Verified by VAO / Agri Officer</option>
-                      <option value="Approved">Approved (Subsidy / Pass Issued)</option>
-                      <option value="Resolved">Resolved / Completed</option>
-                      <option value="Rejected">Rejected</option>
-                      <option value="Closed">Closed</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
-                      Official Uzhavan / Revenue Ack No
-                    </label>
-                    <input
-                      type="text"
-                      value={adminFarmerAck}
-                      onChange={(e) => setAdminFarmerAck(e.target.value)}
-                      placeholder="e.g. UZHAVAN-2026-8912"
-                      className="w-full px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-mono font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Field Inspection / Land Verification Date (If applicable)
-                  </label>
-                  <input
-                    type="date"
-                    value={adminFarmerInspectionDate}
-                    onChange={(e) => setAdminFarmerInspectionDate(e.target.value)}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 border border-slate-300 rounded-lg text-xs sm:text-sm font-bold bg-white text-slate-800 outline-none focus:border-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Official Admin Remarks / Citizen Response Notes
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={adminFarmerRemarks}
-                    onChange={(e) => setAdminFarmerRemarks(e.target.value)}
-                    placeholder="Enter official resolution notes that will be prominently highlighted in green on the citizen portal..."
-                    className="w-full p-3 border border-slate-300 rounded-lg text-xs sm:text-sm font-medium bg-white text-slate-800 outline-none focus:border-emerald-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2.5">
-                  <button
-                    type="submit"
-                    disabled={isUpdatingStatus}
-                    className="px-6 py-2 bg-[#15803d] hover:bg-[#166534] text-white rounded-lg text-xs sm:text-sm font-bold shadow-xs cursor-pointer disabled:opacity-60 flex items-center gap-1.5"
-                  >
-                    {isUpdatingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>Save Farmer Status & Send Response</span>
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 };

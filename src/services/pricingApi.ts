@@ -119,25 +119,7 @@ export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
   'vehicle-ownership-transfer': 200,
   'vehicle-duplicate-rc': 150,
 
-  // ── 8. Farmer Services ──────────────────────────────
-  'pm-kisan-reg': 50,
-  'patta-chitta-extract': 60,
-  'fmb-sketch-copy': 60,
-  'crop-insurance-pmfby': 80,
-  'micro-irrigation-subsidy': 100,
-  'farm-machinery-tractor': 100,
-  'uzhavar-sandhai-pass': 40,
-  'soil-health-card': 50,
-  'subsidized-seeds-depot': 50,
-  'farmer-pm-kisan': 50,
-  'farmer-fmb-sketch': 60,
-  'farmer-crop-insurance': 80,
-  'farmer-drip-irrigation': 100,
-  'farmer-machinery-subsidy': 100,
-  'farmer-uzhavar-sandhai': 40,
-  'farmer-soil-health-card': 50,
-
-  // ── 9. Certificates & PVC ───────────────────────────
+  // ── 8. Certificates & PVC ───────────────────────────
   'pvc-maker': 80,
   'birth-certificate': 60,
   'death-certificate': 60,
@@ -150,7 +132,7 @@ export const DEFAULT_SERVICE_PRICES: Record<string, number> = {
 const BASE = API_ENDPOINTS.pricing;
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -161,6 +143,18 @@ export const pricingApi = {
   /**
    * Fetch current pricing configuration (from API or local cache)
    */
+  async getPricing() {
+    const config = await this.getConfig();
+    return {
+      success: true,
+      prices: config.prices,
+      data: {
+        prices: config.prices,
+        services: Object.entries(config.prices).map(([serviceId, price]) => ({ serviceId, price })),
+      },
+    };
+  },
+
   async getConfig(): Promise<{
     settings: PaymentGatewaySettings;
     prices: Record<string, number>;

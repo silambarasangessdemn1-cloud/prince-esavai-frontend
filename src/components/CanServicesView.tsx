@@ -324,7 +324,7 @@ export const CanServicesView: React.FC = () => {
           canNumber: details.canNumber,
           needType: details.needType || 'General CAN Requirement',
           documentName: a.documents?.[0]?.name,
-          documentUrl: a.documents?.[0]?.url,
+          documentUrl: (a.documents?.[0] as any)?.url,
           status: a.status || 'Under Review',
           createdAt: a.date,
           remarks: a.remarks,

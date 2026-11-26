@@ -18,73 +18,77 @@ import {
   ShieldCheck,
   Eye,
   X,
+  Wallet,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Zap,
 } from 'lucide-react';
 import { paymentApi, PaymentItem } from '../services/paymentApi';
+import { walletApi, WalletTransactionItem } from '../services/walletApi';
 
 export interface AdminPaymentsViewProps {
   onRefreshCounts?: () => void;
 }
 
 export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ onRefreshCounts }) => {
+  const [activeViewTab, setActiveViewTab] = useState<'ledger' | 'historical'>('ledger');
+
+  // Ledger state
+  const [ledgerTxns, setLedgerTxns] = useState<WalletTransactionItem[]>([]);
+  const [ledgerOverview, setLedgerOverview] = useState<any>(null);
+  const [ledgerFilter, setLedgerFilter] = useState<string>('ALL');
+  const [ledgerSearch, setLedgerSearch] = useState('');
+
+  // Historical payments state
   const [payments, setPayments] = useState<PaymentItem[]>([]);
-  const [stats, setStats] = useState({ total: 0, pending: 0, verified: 0, rejected: 0 });
+  const [historicalStats, setHistoricalStats] = useState({ total: 0, pending: 0, verified: 0, rejected: 0 });
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [historicalSearch, setHistoricalSearch] = useState('');
+
   const [isLoading, setIsLoading] = useState(true);
-  const [copiedUtr, setCopiedUtr] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Rejection modal
-  const [rejectingItem, setRejectingItem] = useState<PaymentItem | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-
-  // Screenshot preview modal
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-
-  const loadData = async () => {
+  // Load Wallet Ledger & Overview
+  const loadLedgerData = async () => {
     setIsLoading(true);
-    const res = await paymentApi.getAllPayments({
-      status: statusFilter !== 'all' ? statusFilter : undefined,
-      search: searchQuery.trim() || undefined,
-    });
-    setPayments(res.payments);
-    setStats(res.stats);
+    try {
+      const [overviewData, txnsData] = await Promise.all([
+        walletApi.getAdminOverview().catch(() => null),
+        walletApi.getAdminTransactions(1, 50, ledgerFilter, ledgerSearch.trim()).catch(() => ({ transactions: [] })),
+      ]);
+      setLedgerOverview(overviewData);
+      setLedgerTxns(txnsData.transactions || []);
+    } catch {}
+    setIsLoading(false);
+  };
+
+  // Load Historical Payments
+  const loadHistoricalData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await paymentApi.getAllPayments({
+        status: statusFilter !== 'all' ? statusFilter : undefined,
+        search: historicalSearch.trim() || undefined,
+      });
+      setPayments(res.payments || []);
+      setHistoricalStats(res.stats || { total: 0, pending: 0, verified: 0, rejected: 0 });
+    } catch {}
     setIsLoading(false);
   };
 
   useEffect(() => {
-    loadData();
-  }, [statusFilter, searchQuery]);
+    if (activeViewTab === 'ledger') {
+      loadLedgerData();
+    } else {
+      loadHistoricalData();
+    }
+  }, [activeViewTab, ledgerFilter, ledgerSearch, statusFilter, historicalSearch]);
 
-  const handleCopy = (utr: string) => {
-    navigator.clipboard.writeText(utr);
-    setCopiedUtr(utr);
-    setTimeout(() => setCopiedUtr(null), 2000);
+  const handleCopy = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
-
-  const handleApprove = async (payment: PaymentItem) => {
-    const id = payment._id || payment.ticketNumber;
-    await paymentApi.verifyPayment(id, 'Verified & Approved', 'Payment verified by Admin');
-    await loadData();
-    if (onRefreshCounts) onRefreshCounts();
-  };
-
-  const handleConfirmReject = async () => {
-    if (!rejectingItem) return;
-    const id = rejectingItem._id || rejectingItem.ticketNumber;
-    await paymentApi.verifyPayment(
-      id,
-      'Rejected',
-      rejectionReason || 'Invalid UTR or payment not received'
-    );
-    setRejectingItem(null);
-    setRejectionReason('');
-    await loadData();
-    if (onRefreshCounts) onRefreshCounts();
-  };
-
-  const totalAmountCollected = payments
-    .filter((p) => p.status === 'Verified & Approved')
-    .reduce((sum, p) => sum + (p.amount || 0), 0);
 
   return (
     <div
@@ -95,19 +99,19 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ onRefreshC
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 text-xs font-bold uppercase tracking-wider mb-2">
-            <CreditCard className="w-3.5 h-3.5" />
-            <span>UPI Verification Gateway</span>
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>Cashfree Gateway & Wallet Ledger</span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-            UPI QR Payment Verifications
+            Payments & Wallet Management
           </h1>
           <p className="text-sm text-slate-500 font-medium mt-0.5">
-            Verify citizen payment reference numbers (UTR) against bank records and approve service processing.
+            Monitor real-time Cashfree wallet top-ups, automated service debits, and historical transaction ledgers.
           </p>
         </div>
 
         <button
-          onClick={loadData}
+          onClick={() => (activeViewTab === 'ledger' ? loadLedgerData() : loadHistoricalData())}
           className="self-start md:self-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer flex items-center gap-2"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
@@ -119,329 +123,323 @@ export const AdminPaymentsView: React.FC<AdminPaymentsViewProps> = ({ onRefreshC
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-            Total Submissions
+            Circulating Balance
           </span>
-          <span className="text-2xl font-black text-slate-900 tracking-tight mt-1 block">
-            {stats.total}
+          <span className="text-2xl font-black text-slate-900 block mt-1 font-mono">
+            ₹{(ledgerOverview?.totalCirculatingBalance || 0).toFixed(2)}
           </span>
-          <span className="text-[11px] text-slate-400 font-medium">All recorded payments</span>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border border-amber-200 bg-amber-50/40 shadow-2xs">
-          <span className="text-xs font-bold text-amber-700 uppercase tracking-wider block">
-            Pending Verification
+          <span className="text-[11px] text-emerald-700 font-bold block mt-0.5">
+            Across {ledgerOverview?.totalUsers || 0} citizen accounts
           </span>
-          <span className="text-2xl font-black text-amber-800 tracking-tight mt-1 block flex items-center gap-2">
-            <span>{stats.pending}</span>
-            {stats.pending > 0 && (
-              <span className="text-xs font-bold px-2 py-0.5 bg-amber-500 text-white rounded-full animate-pulse">
-                Action Required
-              </span>
-            )}
-          </span>
-          <span className="text-[11px] text-amber-600 font-medium">Awaiting admin review</span>
-        </div>
-
-        <div className="bg-white rounded-xl p-4 border border-emerald-200 bg-emerald-50/40 shadow-2xs">
-          <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider block">
-            Verified & Approved
-          </span>
-          <span className="text-2xl font-black text-emerald-800 tracking-tight mt-1 block">
-            {stats.verified}
-          </span>
-          <span className="text-[11px] text-emerald-600 font-medium">Approved for processing</span>
         </div>
 
         <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
           <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-            Approved Volume
+            Cashfree Top-Ups
           </span>
-          <span className="text-2xl font-black text-slate-900 tracking-tight mt-1 block">
-            ₹{totalAmountCollected.toLocaleString('en-IN')}
+          <span className="text-2xl font-black text-emerald-700 block mt-1 font-mono">
+            ₹{(ledgerOverview?.credits?.total || 0).toFixed(2)}
           </span>
-          <span className="text-[11px] text-slate-400 font-medium">Total verified fees</span>
+          <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+            {ledgerOverview?.credits?.count || 0} successful top-ups
+          </span>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+            Service Debits
+          </span>
+          <span className="text-2xl font-black text-blue-700 block mt-1 font-mono">
+            ₹{(ledgerOverview?.debits?.total || 0).toFixed(2)}
+          </span>
+          <span className="text-[11px] text-slate-500 font-medium block mt-0.5">
+            {ledgerOverview?.debits?.count || 0} applications processed
+          </span>
+        </div>
+
+        <div className="bg-white rounded-xl p-4 border border-slate-200 shadow-2xs">
+          <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
+            Gateway Status
+          </span>
+          <span className="text-sm font-black text-emerald-800 block mt-2 flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+            Cashfree {ledgerOverview?.gateway?.env?.toUpperCase() || 'SANDBOX'}
+          </span>
+          <span className="text-[10px] text-slate-400 font-mono block mt-1">
+            API v2023-08-01 Active
+          </span>
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-4 sm:p-5 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-        {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0 text-xs font-semibold">
-          {[
-            { id: 'all', label: `All (${stats.total})` },
-            { id: 'Pending Verification', label: `Pending (${stats.pending})` },
-            { id: 'Verified & Approved', label: `Approved (${stats.verified})` },
-            { id: 'Rejected', label: `Rejected (${stats.rejected})` },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-lg whitespace-nowrap text-xs font-bold transition-colors cursor-pointer ${
-                statusFilter === tab.id
-                  ? 'bg-slate-900 text-white shadow-2xs'
-                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Search Bar */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search UTR, Token, Citizen..."
-            className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
-          />
-        </div>
-      </div>
-
-      {/* Payments List */}
+      {/* Main Container with View Selector Tabs */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        {payments.length === 0 ? (
-          <div className="p-12 text-center">
-            <Clock className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="text-base font-bold text-slate-800">No Payment Records Found</h3>
-            <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              {searchQuery || statusFilter !== 'all'
-                ? 'Try adjusting your search query or status filter.'
-                : 'Citizen submissions with UTR reference numbers will appear here for verification.'}
-            </p>
+        {/* Navigation Tabs Header */}
+        <div className="px-5 pt-4 pb-0 border-b border-slate-100 flex items-center gap-4 bg-slate-50/50">
+          <button
+            type="button"
+            onClick={() => setActiveViewTab('ledger')}
+            className={`pb-3 px-1 text-sm font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeViewTab === 'ledger'
+                ? 'border-emerald-600 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Wallet className="w-4 h-4" />
+            <span>Cashfree Top-Ups & Wallet Ledger</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveViewTab('historical')}
+            className={`pb-3 px-1 text-sm font-black border-b-2 transition-all flex items-center gap-2 cursor-pointer ${
+              activeViewTab === 'historical'
+                ? 'border-emerald-600 text-emerald-800'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Historical Applications & UTR Archive ({historicalStats.total})</span>
+          </button>
+        </div>
+
+        {/* ── TAB 1: WALLET LEDGER & CASHFREE TOP-UPS ──────────────────────── */}
+        {activeViewTab === 'ledger' && (
+          <div className="p-5 space-y-4">
+            {/* Filter & Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+                {[
+                  { id: 'ALL', label: 'All Operations' },
+                  { id: 'CREDIT', label: 'Top-Ups (Cashfree)' },
+                  { id: 'DEBIT', label: 'Service Payments' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setLedgerFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      ledgerFilter === f.id
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={ledgerSearch}
+                  onChange={(e) => setLedgerSearch(e.target.value)}
+                  placeholder="Search Txn ID, Order ID, User..."
+                  className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                />
+              </div>
+            </div>
+
+            {/* Ledger Table */}
+            <div className="border border-slate-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Transaction ID & Ref</th>
+                    <th className="py-3 px-4">User</th>
+                    <th className="py-3 px-4">Description</th>
+                    <th className="py-3 px-4">Type</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Balance After</th>
+                    <th className="py-3 px-4">Date & Time</th>
+                    <th className="py-3 px-4 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {ledgerTxns.length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                        No transactions recorded yet in the Cashfree ledger.
+                      </td>
+                    </tr>
+                  ) : (
+                    ledgerTxns.map((tx) => {
+                      const isCredit = tx.type === 'CREDIT';
+                      const userObj = typeof tx.userId === 'object' && tx.userId ? tx.userId : null;
+                      return (
+                        <tr key={tx._id || tx.transactionId} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-3 px-4 font-mono whitespace-nowrap">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-900">{tx.transactionId}</span>
+                              <button
+                                onClick={() => handleCopy(tx.transactionId)}
+                                className="text-slate-400 hover:text-slate-700"
+                                title="Copy Transaction ID"
+                              >
+                                {copiedId === tx.transactionId ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                              </button>
+                            </div>
+                            {(tx.cashfreeOrderId || tx.relatedOrderId) && (
+                              <div className="text-[10px] text-slate-400 truncate max-w-[170px]">
+                                Ref: {tx.cashfreeOrderId || tx.relatedOrderId}
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <div className="font-bold text-slate-800">{userObj?.username || 'Citizen'}</div>
+                            <div className="text-[10px] text-slate-500">{userObj?.phoneNumber || ''}</div>
+                          </td>
+                          <td className="py-3 px-4">
+                            <span className="font-medium text-slate-800 block">{tx.description}</span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                                isCredit ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'
+                              }`}
+                            >
+                              {tx.type}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap font-mono font-black text-sm">
+                            <span className={isCredit ? 'text-emerald-700' : 'text-slate-900'}>
+                              {isCredit ? '+' : '-'} ₹{tx.amount.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap font-mono text-slate-600 font-bold">
+                            ₹{tx.updatedBalance.toFixed(2)}
+                          </td>
+                          <td className="py-3 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                            {new Date(tx.createdAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </td>
+                          <td className="py-3 px-4 text-right whitespace-nowrap">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-emerald-100 text-emerald-800">
+                              {tx.status || 'SUCCESS'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {payments.map((payment) => {
-              const isPending = payment.status === 'Pending Verification';
-              const isApproved = payment.status === 'Verified & Approved';
-              const isRejected = payment.status === 'Rejected';
+        )}
 
-              return (
-                <div
-                  key={payment._id || payment.ticketNumber}
-                  className={`p-4 sm:p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 transition-colors ${
-                    isPending ? 'bg-amber-50/20 hover:bg-amber-50/40' : 'hover:bg-slate-50'
-                  }`}
-                >
-                  {/* Left Column: Token, Service, Applicant */}
-                  <div className="space-y-1.5 flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs font-black text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
-                        {payment.ticketNumber}
-                      </span>
-                      <span className="text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md">
-                        {payment.serviceName}
-                      </span>
-                      <span
-                        className={`text-[11px] font-black px-2 py-0.5 rounded-full border ${
-                          isPending
-                            ? 'bg-amber-50 text-amber-800 border-amber-200'
-                            : isApproved
-                            ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                            : 'bg-rose-50 text-rose-800 border-rose-200'
-                        }`}
-                      >
-                        {payment.status}
-                      </span>
-                    </div>
+        {/* ── TAB 2: HISTORICAL APPLICATIONS & ARCHIVE ────────────────────── */}
+        {activeViewTab === 'historical' && (
+          <div className="p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs font-semibold">
+                {[
+                  { id: 'all', label: `All (${historicalStats.total})` },
+                  { id: 'Verified & Approved', label: `Approved (${historicalStats.verified})` },
+                  { id: 'Pending Verification', label: `Pending (${historicalStats.pending})` },
+                  { id: 'Rejected', label: `Rejected (${historicalStats.rejected})` },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setStatusFilter(s.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+                      statusFilter === s.id
+                        ? 'bg-slate-900 text-white shadow-2xs'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-xs text-slate-600">
-                      <span className="flex items-center gap-1 font-bold text-slate-800">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        {payment.applicantName}
-                      </span>
-                      <span className="flex items-center gap-1 text-slate-500 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-slate-400" />
-                        {payment.applicantPhone}
-                      </span>
-                      <span className="text-slate-400">•</span>
-                      <span className="text-slate-500">
-                        {new Date(payment.createdAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
+              <div className="relative w-full sm:w-80">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={historicalSearch}
+                  onChange={(e) => setHistoricalSearch(e.target.value)}
+                  placeholder="Search Ticket, UTR, Name..."
+                  className="w-full pl-9 pr-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:bg-white"
+                />
+              </div>
+            </div>
 
-                    {payment.rejectionReason && (
-                      <p className="text-xs text-rose-700 font-bold bg-rose-50/80 px-2.5 py-1 rounded-lg border border-rose-200 inline-block">
-                        Rejection Reason: {payment.rejectionReason}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Center Column: UTR & Amount */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 shrink-0">
-                    {/* Amount */}
-                    <div className="text-left sm:text-right">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                        Fee Paid
-                      </span>
-                      <span className="text-xl font-black text-emerald-700 tracking-tight">
-                        ₹{payment.amount}
-                      </span>
-                    </div>
-
-                    {/* UTR Box with copy */}
-                    <div className="bg-slate-100 border border-slate-300 rounded-xl px-3 py-1.5 flex items-center gap-2">
-                      <div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                          12-Digit UTR Number
-                        </span>
-                        <code className="text-xs font-mono font-black text-slate-900">
-                          {payment.utrNumber}
-                        </code>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(payment.utrNumber)}
-                        className="p-1 rounded-md hover:bg-white text-slate-600 cursor-pointer transition-colors"
-                        title="Copy UTR"
-                      >
-                        {copiedUtr === payment.utrNumber ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <Copy className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-                    </div>
-
-                    {/* Screenshot Button (if attached) */}
-                    {payment.paymentScreenshot && (
-                      <button
-                        type="button"
-                        onClick={() => setPreviewImage(payment.paymentScreenshot || null)}
-                        className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold cursor-pointer transition-colors flex items-center gap-1.5"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" />
-                        <span>Receipt</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Right Column: Actions */}
-                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
-                    {isPending ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setRejectingItem(payment)}
-                          className="px-3.5 py-2 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span>Reject</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleApprove(payment)}
-                          className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase tracking-wider shadow-sm transition-all cursor-pointer flex items-center gap-1.5 active:scale-98"
-                        >
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Verify & Approve</span>
-                        </button>
-                      </>
-                    ) : isApproved ? (
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        <span>Approved & Verified</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-200">
-                        <XCircle className="w-4 h-4 text-rose-600" />
-                        <span>Payment Rejected</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            <div className="border border-slate-200 rounded-xl overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                    <th className="py-3 px-4">Ticket & Service</th>
+                    <th className="py-3 px-4">Applicant</th>
+                    <th className="py-3 px-4">Amount</th>
+                    <th className="py-3 px-4">Reference / UTR</th>
+                    <th className="py-3 px-4">Method</th>
+                    <th className="py-3 px-4">Date</th>
+                    <th className="py-3 px-4 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium">
+                  {payments.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-slate-400 font-medium">
+                        No historical payment records found.
+                      </td>
+                    </tr>
+                  ) : (
+                    payments.map((p) => (
+                      <tr key={p._id || p.ticketNumber} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="font-mono font-bold text-emerald-900">{p.ticketNumber}</div>
+                          <div className="text-[11px] text-slate-500">{p.serviceName}</div>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <div className="font-bold text-slate-900">{p.applicantName}</div>
+                          <div className="text-[11px] text-slate-500">{p.applicantPhone}</div>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap font-mono font-black text-slate-900">
+                          ₹{(p.amount || 0).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 font-mono whitespace-nowrap text-slate-700">
+                          {p.utrNumber}
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-700">
+                            {p.paymentMethod || 'Wallet'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 whitespace-nowrap text-slate-500 font-mono text-[11px]">
+                          {new Date(p.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric',
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-right whitespace-nowrap">
+                          <span
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                              p.status === 'Verified & Approved'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : p.status === 'Rejected'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {p.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Rejection Reason Modal */}
-      {rejectingItem && (
-        <div className="fixed inset-0 z-50 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-slate-900">
-                  Reject Payment for {rejectingItem.ticketNumber}
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Provide reason why this UTR ({rejectingItem.utrNumber}) cannot be verified.
-                </p>
-              </div>
-              <button
-                onClick={() => setRejectingItem(null)}
-                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <textarea
-              rows={3}
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-              placeholder="e.g. UTR not found in bank account, amount mismatch, duplicate UTR..."
-              className="w-full px-3 py-2 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500"
-            />
-
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setRejectingItem(null)}
-                className="px-4 py-2 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmReject}
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer"
-              >
-                Confirm Rejection
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Screenshot Preview Modal */}
-      {previewImage && (
-        <div
-          onClick={() => setPreviewImage(null)}
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-2xl max-w-lg w-full p-4 shadow-2xl space-y-3"
-          >
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <span className="text-sm font-bold text-slate-900">Payment Receipt Screenshot</span>
-              <button
-                onClick={() => setPreviewImage(null)}
-                className="p-1 hover:bg-slate-100 rounded-lg text-slate-500 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <img
-              src={previewImage}
-              alt="Payment receipt proof"
-              className="w-full max-h-[70vh] object-contain rounded-xl border border-slate-200"
-            />
-          </div>
-        </div>
-      )}
     </div>
   );
 };
-

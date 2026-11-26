@@ -15,6 +15,7 @@ export interface PaymentItem {
   paymentScreenshot?: string;
   paymentMethod: string;
   status: PaymentStatus;
+  adminRemarks?: string;
   verifiedBy?: string;
   verifiedAt?: string;
   rejectionReason?: string;
@@ -24,7 +25,7 @@ export interface PaymentItem {
 const BASE = API_ENDPOINTS.payments;
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -53,15 +54,7 @@ export const paymentApi = {
       createdAt: new Date().toISOString(),
     };
 
-    // Store in global payments store in localStorage for offline / multi-user fallback
-    try {
-      const stored = localStorage.getItem('esevai_all_payments');
-      const list: PaymentItem[] = stored ? JSON.parse(stored) : [];
-      list.unshift(paymentRecord);
-      localStorage.setItem('esevai_all_payments', JSON.stringify(list));
-    } catch {}
-
-    // Also send to backend
+    // Only persist after backend verifies success
     try {
       const res = await fetch(`${BASE}/submit`, {
         method: 'POST',
@@ -69,9 +62,17 @@ export const paymentApi = {
         body: JSON.stringify(data),
       });
       const json = await res.json();
+      if (json.success && json.data) {
+        try {
+          const stored = localStorage.getItem('esevai_all_payments');
+          const list: PaymentItem[] = stored ? JSON.parse(stored) : [];
+          list.unshift(json.data);
+          localStorage.setItem('esevai_all_payments', JSON.stringify(list));
+        } catch {}
+      }
       return json;
     } catch {
-      return { success: true, data: paymentRecord };
+      return { success: false, error: 'Could not submit payment record.' };
     }
   },
 

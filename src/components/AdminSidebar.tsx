@@ -18,13 +18,14 @@ import {
   Headphones,
   Database,
   X,
-  Sprout,
   Tag,
   QrCode,
   DollarSign,
+  BarChart3,
+  LayoutDashboard,
 } from 'lucide-react';
 
-export type AdminQueue = 'aadhaar' | 'pan' | 'voter' | 'ration' | 'driving' | 'vehicle' | 'farmer' | 'pricing' | 'payments';
+export type AdminQueue = 'dashboard' | 'aadhaar' | 'pan' | 'voter' | 'ration' | 'driving' | 'vehicle' | 'pricing' | 'payments';
 export type AdminQuickTab = 'all' | 'pending' | 'in_progress' | 'resolved';
 
 export interface AdminQueueCounts {
@@ -34,7 +35,6 @@ export interface AdminQueueCounts {
   ration: number;
   driving: number;
   vehicle: number;
-  farmer: number;
   pricing?: number;
   payments?: number;
   total: number;
@@ -116,13 +116,6 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
       icon: Car,
       count: counts.vehicle,
     },
-    // {
-    //   id: 'farmer',
-    //   label: 'Farmer Services',
-    //   sublabel: 'Uzhavan / Land Records',
-    //   icon: Sprout,
-    //   count: counts.farmer,
-    // },
   ];
 
   const statusItems: Array<{
@@ -222,6 +215,61 @@ export const AdminSidebar: React.FC<AdminSidebarProps> = ({
 
         {/* Primary Service Queues */}
         <div className="px-3 py-1 flex-1 space-y-4">
+          {/* Executive Overview Section */}
+          <div>
+            <div className="px-2 pb-1.5 text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">
+              <span>Executive Overview</span>
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-800">
+                Live
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <button
+                type="button"
+                onClick={() => handleQueueClick('dashboard')}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-bold tracking-wide transition-all cursor-pointer text-left group ${
+                  activeQueue === 'dashboard'
+                    ? 'bg-[#10b981] text-slate-950 font-black shadow-lg shadow-emerald-500/25 translate-x-0.5'
+                    : 'text-slate-300 hover:text-white hover:bg-slate-800/90'
+                }`}
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
+                      activeQueue === 'dashboard'
+                        ? 'bg-slate-950/20 text-slate-950'
+                        : 'bg-[#131b2e] text-[#10b981] group-hover:bg-slate-700/80 border border-slate-800'
+                    }`}
+                  >
+                    <BarChart3 className="w-4 h-4 stroke-[2.2]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate font-black text-xs leading-tight">
+                      Earnings & Services Dashboard
+                    </div>
+                    <div
+                      className={`text-[10px] truncate ${
+                        activeQueue === 'dashboard' ? 'text-slate-900 font-semibold' : 'text-slate-400'
+                      }`}
+                    >
+                      Total Revenue & Filters
+                    </div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[10px] font-black uppercase px-1.5 py-0.5 rounded shrink-0 ml-1.5 ${
+                    activeQueue === 'dashboard'
+                      ? 'bg-slate-950 text-white shadow-xs'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}
+                >
+                  KPIs
+                </span>
+              </button>
+            </div>
+          </div>
+
           {/* Gateway & Service Pricing Section */}
           <div>
             <div className="px-2 pb-1.5 text-[11px] font-black text-slate-400 uppercase tracking-wider flex items-center justify-between">

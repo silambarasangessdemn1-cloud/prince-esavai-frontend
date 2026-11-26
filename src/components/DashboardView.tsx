@@ -20,8 +20,6 @@ export const DashboardView: React.FC = () => {
       setActiveTab('voter_services');
     } else if (service.category === 'pan') {
       setActiveTab('pan_services');
-    } else if (service.category === 'farmer') {
-      setActiveTab('farmer_services');
     } else if (service.category === 'driving') {
       setActiveTab('driving_services');
     } else if (service.category === 'vehicle') {
@@ -38,7 +36,6 @@ export const DashboardView: React.FC = () => {
     if (activeTab === 'aadhaar_corrections' && service.category !== 'aadhaar') return false;
     if (activeTab === 'voter_services' && service.category !== 'voter') return false;
     if (activeTab === 'pan_services' && service.category !== 'pan') return false;
-    if (activeTab === 'farmer_services' && service.category !== 'farmer') return false;
     if (activeTab === 'driving_services' && service.category !== 'driving') return false;
     if (activeTab === 'vehicle_services' && service.category !== 'vehicle') return false;
 
@@ -74,7 +71,6 @@ export const DashboardView: React.FC = () => {
             { id: 'aadhaar', label: 'Aadhaar Services' },
             { id: 'voter', label: 'Voter Services' },
             { id: 'pan', label: 'PAN Services' },
-            { id: 'farmer', label: 'Farmer Services' },
             { id: 'driving', label: 'Driving Services' },
             { id: 'vehicle', label: 'Vehicle Services' },
           ].map((cat) => (
@@ -123,7 +119,7 @@ export const DashboardView: React.FC = () => {
               <BadgeAlert className="w-12 h-12 text-slate-400 mx-auto mb-2" />
               <h3 className="text-lg font-bold text-slate-800">No Services Found</h3>
               <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">
-                No services matched your search. Try searching for "Ration", "Aadhaar", "Voter", "PAN", "Farmer", "DL", or "RC".
+                No services matched your search. Try searching for "Ration", "Aadhaar", "Voter", "PAN", "DL", or "RC".
               </p>
               <button
                 onClick={() => {
@@ -153,7 +149,6 @@ export const DashboardView: React.FC = () => {
                   else if (category.id === 'aadhaar') setActiveTab('aadhaar_corrections');
                   else if (category.id === 'voter') setActiveTab('voter_services');
                   else if (category.id === 'pan') setActiveTab('pan_services');
-                  else if (category.id === 'farmer') setActiveTab('farmer_services');
                   else if (category.id === 'driving') setActiveTab('driving_services');
                   else if (category.id === 'vehicle') setActiveTab('vehicle_services');
                 }}

@@ -26,7 +26,6 @@ import {
   Loader2,
   CheckCircle,
   Hash,
-  Sprout,
   QrCode,
   XCircle,
 } from 'lucide-react';
@@ -37,8 +36,8 @@ import { voterApi } from '../services/voterApi';
 import { rationApi } from '../services/rationApi';
 import { drivingApi } from '../services/drivingApi';
 import { vehicleApi } from '../services/vehicleApi';
-import { farmerApi } from '../services/farmerApi';
 import { paymentApi } from '../services/paymentApi';
+import { syncTicketStatusToLocal } from '../utils/statusSync';
 
 interface AdminApplicationDetailsPageProps {
   type: AdminQueue;
@@ -61,7 +60,7 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; dot: string 
   Closed: { label: 'Closed', badge: 'bg-slate-100 text-slate-600 border-slate-200', dot: 'bg-slate-500' },
 };
 
-const QUEUE_METADATA: Record<AdminQueue, { title: string; subtitle: string; icon: React.FC<{ className?: string }> }> = {
+const QUEUE_METADATA: Partial<Record<AdminQueue, { title: string; subtitle: string; icon: React.FC<{ className?: string }> }>> = {
   aadhaar: {
     title: 'Aadhaar Service Dossier',
     subtitle: 'UIDAI Citizen Identity & Demographic / Biometric Service Request',
@@ -91,11 +90,6 @@ const QUEUE_METADATA: Record<AdminQueue, { title: string; subtitle: string; icon
     title: 'Vahan Vehicle Services Record',
     subtitle: 'Parivahan Sewa - RC Services, Transfer, Fitness & Challans',
     icon: Car,
-  },
-  farmer: {
-    title: 'Farmer & Land Records Dossier',
-    subtitle: 'Uzhavan / Tamil Nadu Agriculture, PM-KISAN, e-Patta & Crop Insurance',
-    icon: Sprout,
   },
 };
 
@@ -241,6 +235,7 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
         res = await aadhaarApi.updateStatus(ticket._id, status, remarks);
         if (res.success && res.data?.issue) {
           setTicket(res.data.issue);
+          syncTicketStatusToLocal(ticket.ticketNumber || ticket._id, status, remarks);
           setFeedback({ type: 'success', message: `Aadhaar application status updated to "${status}" successfully!` });
           onRefreshQueue();
         } else {
@@ -250,6 +245,7 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
         res = await panApi.updateStatus(ticket._id, status, remarks, ackNumber);
         if (res.success && res.data?.request) {
           setTicket(res.data.request);
+          syncTicketStatusToLocal(ticket.ticketNumber || ticket._id, status, remarks, ackNumber);
           setFeedback({ type: 'success', message: `PAN application status updated to "${status}" successfully!` });
           onRefreshQueue();
         } else {
@@ -259,6 +255,7 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
         res = await voterApi.updateStatus(ticket._id, status, remarks, ackNumber);
         if (res.success && res.data?.request) {
           setTicket(res.data.request);
+          syncTicketStatusToLocal(ticket.ticketNumber || ticket._id, status, remarks, ackNumber);
           setFeedback({ type: 'success', message: `Voter ID application status updated to "${status}" successfully!` });
           onRefreshQueue();
         } else {
@@ -272,6 +269,7 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
         });
         if (res.success && res.data) {
           setTicket(res.data);
+          syncTicketStatusToLocal(ticket.ticketNumber || ticket._id, status, remarks, ackNumber);
           setFeedback({ type: 'success', message: `Ration Card application status updated to "${status}" successfully!` });
           onRefreshQueue();
         } else {
@@ -286,6 +284,7 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
         });
         if (res.success && res.data) {
           setTicket(res.data);
+          syncTicketStatusToLocal(ticket.ticketNumber || ticket._id, status, remarks, ackNumber);
           setFeedback({ type: 'success', message: `Driving License status updated to "${status}" successfully!` });
           onRefreshQueue();
         } else {
@@ -301,24 +300,11 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
         });
         if (res.success && res.data) {
           setTicket(res.data);
+          syncTicketStatusToLocal(ticket.ticketNumber || ticket._id, status, remarks, ackNumber);
           setFeedback({ type: 'success', message: `Vehicle Service status updated to "${status}" successfully!` });
           onRefreshQueue();
         } else {
           setFeedback({ type: 'error', message: res.message || 'Failed to update Vehicle status.' });
-        }
-      } else if (type === 'farmer') {
-        res = await farmerApi.updateStatus(ticket._id, {
-          status,
-          resolutionRemarks: remarks,
-          officialAckNumber: ackNumber,
-          fieldInspectionDate: slotDate || undefined,
-        });
-        if (res.success && res.data) {
-          setTicket(res.data);
-          setFeedback({ type: 'success', message: `Farmer application status updated to "${status}" successfully!` });
-          onRefreshQueue();
-        } else {
-          setFeedback({ type: 'error', message: res.message || 'Failed to update Farmer status.' });
         }
       }
     } catch (err: any) {
@@ -338,7 +324,6 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
     ticket.citizenName ||
     ticket.applicantName ||
     ticket.ownerName ||
-    ticket.farmerName ||
     'Applicant';
 
   const citizenPhone = ticket.contactNumber || ticket.phone || ticket.mobileNumber || '';
@@ -1016,96 +1001,7 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
               </div>
             )}
 
-            {/* FARMER DETAILS */}
-            {type === 'farmer' && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                  <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-emerald-800 block">Farmer Name</span>
-                    <div className="font-bold text-emerald-950 text-sm mt-1">{ticket.farmerName}</div>
-                  </div>
 
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Father / Spouse Name</span>
-                    <div className="font-bold text-slate-900 text-xs mt-1">{ticket.fatherOrHusbandName || '---'}</div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Farmer Category & Community</span>
-                    <div className="font-bold text-slate-900 text-xs mt-1">
-                      {ticket.farmerCategory} • {ticket.community}
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue District & Taluk</span>
-                    <div className="font-bold text-slate-900 text-xs mt-1">
-                      {ticket.district} / {ticket.taluk}
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Revenue Village</span>
-                    <div className="font-bold text-slate-900 text-xs mt-1">{ticket.village}</div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Patta & Survey Numbers</span>
-                    <div className="font-mono font-bold text-emerald-800 text-xs mt-1">
-                      {ticket.pattaNumber ? `Patta: ${ticket.pattaNumber}` : ''} {ticket.surveyNumber ? `Sy: ${ticket.surveyNumber}` : '---'}
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Total Land Area</span>
-                    <div className="font-bold text-slate-900 text-xs mt-1">{ticket.totalLandArea || '---'}</div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Cultivated Crop & Season</span>
-                    <div className="font-bold text-slate-900 text-xs mt-1">
-                      {ticket.cropName} • {ticket.season}
-                    </div>
-                  </div>
-
-                  <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 block">Irrigation Source</span>
-                    <div className="font-medium text-slate-800 text-xs mt-1">{ticket.irrigationSource || 'Borewell'}</div>
-                  </div>
-                </div>
-
-                {/* DBT Bank Account Card */}
-                {(ticket.bankAccountNumber || ticket.bankIfscCode) && (
-                  <div className="p-4 bg-emerald-50/50 border border-emerald-200 rounded-xl text-xs space-y-1">
-                    <span className="text-[10px] uppercase font-black text-emerald-900 block">Direct Benefit Transfer (DBT) Bank Account</span>
-                    <div className="font-semibold text-slate-900">
-                      Bank: <strong className="font-bold">{ticket.bankName || 'Direct Account'}</strong> • A/c:{' '}
-                      <strong className="font-mono">{ticket.bankAccountNumber || '---'}</strong> • IFSC:{' '}
-                      <strong className="font-mono">{ticket.bankIfscCode || '---'}</strong>
-                    </div>
-                  </div>
-                )}
-
-                {ticket.pmKisanBeneficiaryId && (
-                  <div className="p-3.5 bg-blue-50/50 border border-blue-200 rounded-xl text-xs flex items-center justify-between">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-blue-900 block">PM-KISAN Beneficiary ID</span>
-                      <span className="font-mono font-bold text-blue-950">{ticket.pmKisanBeneficiaryId}</span>
-                    </div>
-                    <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-bold">PM-KISAN DBT</span>
-                  </div>
-                )}
-
-                {ticket.schemeSpecificNotes && (
-                  <div>
-                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-600 block mb-1">Scheme Specific Notes:</span>
-                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 text-xs leading-relaxed font-medium">
-                      {ticket.schemeSpecificNotes}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
 
           {/* 3. ATTACHED DOCUMENTS & PROOFS CARD */}
@@ -1265,16 +1161,14 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
 
               <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
                 <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                  {type === 'farmer' ? 'Field Inspection Date' : 'Scheduled In-Person Slot'}
+                  Scheduled In-Person Slot
                 </span>
                 <div className="font-semibold text-slate-800 text-xs mt-1 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5 text-slate-400" />
                   <span>
-                    {ticket.fieldInspectionDate
-                      ? new Date(ticket.fieldInspectionDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                      : ticket.rtoSlotDate
+                    {ticket.rtoSlotDate
                       ? new Date(ticket.rtoSlotDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-                      : type === 'farmer' ? 'No Inspection Scheduled' : 'No Physical Slot Required'}
+                      : 'No Physical Slot Required'}
                   </span>
                 </div>
               </div>
@@ -1341,11 +1235,11 @@ export const AdminApplicationDetailsPage: React.FC<AdminApplicationDetailsPagePr
                 />
               </div>
 
-              {/* Slot / Inspection Date (For Driving / Vehicle / Aadhaar / Farmer) */}
-              {(type === 'driving' || type === 'vehicle' || type === 'aadhaar' || type === 'farmer') && (
+              {/* Slot Date (For Driving / Vehicle / Aadhaar) */}
+              {(type === 'driving' || type === 'vehicle' || type === 'aadhaar') && (
                 <div>
                   <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                    {type === 'farmer' ? 'Field Inspection / Verification Date' : 'Appointment / Slot Date'}
+                    Appointment / Slot Date
                   </label>
                   <input
                     type="date"

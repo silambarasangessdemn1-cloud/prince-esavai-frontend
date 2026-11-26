@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import {
   ApplicationRecord,
   CenterProfile,
@@ -9,10 +9,13 @@ import {
 } from '../types';
 import { ALL_SERVICES } from '../data/servicesData';
 import { useAuth } from './AuthContext';
+import { applicationApi } from '../services/applicationApi';
 import { pricingApi, DEFAULT_SERVICE_PRICES, DEFAULT_PAYMENT_SETTINGS } from '../services/pricingApi';
 import { paymentApi } from '../services/paymentApi';
-import { PaymentModal } from '../components/PaymentModal';
+import { walletApi } from '../services/walletApi';
+import { WalletCheckoutModal } from '../components/WalletCheckoutModal';
 import { PaymentSuccessModal } from '../components/PaymentSuccessModal';
+import { syncTicketStatusToLocal, syncLiveApplicationsWithBackend, getAppTimestamp } from '../utils/statusSync';
 
 interface AppContextType {
   activeTab: string;
@@ -50,6 +53,8 @@ interface AppContextType {
   setPaymentSuccessModalData: (app: ApplicationRecord | null) => void;
 
   // Wallets
+  walletBalance: number;
+  refreshWalletBalance: () => Promise<number>;
   paymentsWallet: number;
   cardsWallet: number;
   deductWallet: (wallet: WalletType, amount: number, title: string, refId: string) => boolean;
@@ -63,6 +68,8 @@ interface AppContextType {
   applications: ApplicationRecord[];
   addApplication: (app: Omit<ApplicationRecord, 'id' | 'tokenNumber' | 'date'>) => ApplicationRecord;
   updateApplicationStatus: (id: string, status: ApplicationRecord['status']) => void;
+  refreshApplications: () => Promise<ApplicationRecord[]>;
+  isSyncingApplications: boolean;
 
   // Transactions
   transactions: TransactionRecord[];
@@ -114,6 +121,32 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(null);
+
+  // Real-time Wallet Balance synchronized with Cashfree & Ledger
+  const [walletBalance, setWalletBalance] = useState<number>(() => {
+    try {
+      const v = localStorage.getItem('esevai_wallet_balance');
+      return v !== null ? parseFloat(v) : 0.0;
+    } catch {
+      return 0.0;
+    }
+  });
+
+  const refreshWalletBalance = async (): Promise<number> => {
+    try {
+      const res = await walletApi.getBalance();
+      setWalletBalance(res.walletBalance);
+      setPaymentsWallet(res.walletBalance);
+      setCardsWallet(res.walletBalance);
+      return res.walletBalance;
+    } catch {
+      return walletBalance;
+    }
+  };
+
+  useEffect(() => {
+    refreshWalletBalance();
+  }, [user?._id]);
 
   // Exact wallet balances matching the screenshots
   const [paymentsWallet, setPaymentsWallet] = useState<number>(() => {
@@ -187,7 +220,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // Payment Dialog State
+  // Payment Dialog State (Cashfree & Wallet Checkout)
   const [paymentDialogParams, setPaymentDialogParams] = useState<{
     isOpen: boolean;
     serviceName: string;
@@ -195,10 +228,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     amount: number;
     applicantName: string;
     applicantPhone: string;
+    serviceId?: string;
+    ticketNumber?: string;
     onConfirmed: (details: {
-      utrNumber: string;
+      transactionId?: string;
+      utrNumber?: string;
       paidAmount: number;
-      upiIdUsed: string;
+      paymentMethod?: string;
+      upiIdUsed?: string;
       paymentScreenshot?: string;
     }) => void;
   } | null>(null);
@@ -208,6 +245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     categoryLabel?: string;
     amount?: number;
     serviceId?: string;
+    ticketNumber?: string;
     applicantName: string;
     applicantPhone: string;
     onConfirmed: (details: any) => void;
@@ -220,6 +258,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       amount: fee,
       applicantName: params.applicantName,
       applicantPhone: params.applicantPhone,
+      serviceId: params.serviceId,
+      ticketNumber: params.ticketNumber,
       onConfirmed: (details) => {
         setPaymentDialogParams(null);
         params.onConfirmed(details);
@@ -230,70 +270,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Post-payment success bilingual popup state
   const [paymentSuccessModalData, setPaymentSuccessModalData] = useState<ApplicationRecord | null>(null);
 
-  // Helper to load applications combining user storage, all-apps backup, and payments storage
-  const loadStoredApplications = (userId?: string): ApplicationRecord[] => {
-    try {
-      let list: ApplicationRecord[] = [];
-      if (userId) {
-        const saved = localStorage.getItem(`esevai_apps_${userId}`);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-        }
-      }
-      if (list.length === 0) {
-        const allSaved = localStorage.getItem('esevai_apps_all');
-        if (allSaved) {
-          const parsed = JSON.parse(allSaved);
-          if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
-        }
-      }
-
-      // Merge any payments from esevai_all_payments that might be missing
-      const paymentsRaw = localStorage.getItem('esevai_all_payments');
-      if (paymentsRaw) {
-        const payments = JSON.parse(paymentsRaw);
-        if (Array.isArray(payments)) {
-          payments.forEach((p: any) => {
-            const exists = list.some(
-              (a) =>
-                (p.ticketNumber && a.tokenNumber === p.ticketNumber) ||
-                (p.utrNumber && a.utrNumber === p.utrNumber)
-            );
-            if (!exists && p.ticketNumber) {
-              list.push({
-                id: p._id || p.ticketNumber,
-                tokenNumber: p.ticketNumber,
-                serviceId: p.serviceId || 'esevai-service',
-                serviceName: p.serviceName || 'e-Sevai Service',
-                applicantName: p.applicantName || 'Citizen',
-                mobile: p.applicantPhone || '',
-                date: p.submittedAt ? new Date(p.submittedAt).toLocaleDateString() : new Date().toLocaleDateString(),
-                status: p.status === 'Verified & Approved' ? 'Completed' : (p.status === 'Rejected' ? 'Rejected' : 'Under Review'),
-                fee: p.amount || 0,
-                walletType: 'payments',
-                paidAmount: p.amount,
-                utrNumber: p.utrNumber,
-                upiIdUsed: p.upiIdUsed,
-                paymentScreenshot: p.paymentScreenshot,
-                paymentMethod: p.paymentMethod || 'UPI QR',
-                paymentStatus: p.status || 'Pending Verification',
-                remarks: p.adminRemarks || `Payment of ₹${p.amount} recorded with UTR: ${p.utrNumber}`,
-              });
-            }
-          });
-        }
-      }
-      return list;
-    } catch {
-      return [];
-    }
-  };
-
-  // User-scoped applications with global history fallback:
-  const [applications, setApplications] = useState<ApplicationRecord[]>(() => {
-    return loadStoredApplications(user?._id);
-  });
+  const [applications, setApplications] = useState<ApplicationRecord[]>([]);
 
   // User-scoped transactions
   const [transactions, setTransactions] = useState<TransactionRecord[]>(() => {
@@ -363,17 +340,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     prevUserIdRef.current = currentUserId;
 
     if (!user?._id) {
-      setApplications(loadStoredApplications());
       setTransactions([]);
       setPaymentsWallet(799.0);
       setCardsWallet(79.0);
       setNotifications([]);
       setProfile(initialProfile);
+      refreshApplications();
       return;
     }
 
     try {
-      setApplications(loadStoredApplications(user._id));
+      refreshApplications();
 
       const savedTxns = localStorage.getItem(`esevai_txns_${user._id}`);
       setTransactions(savedTxns ? JSON.parse(savedTxns) : []);
@@ -414,14 +391,53 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   }, [currentUserId, user?._id, user?.username, user?.phoneNumber]);
 
-  // Keep applications synchronized across windows or when payments are verified
+  const [isSyncingApplications, setIsSyncingApplications] = useState(false);
+
+  const refreshApplications = useCallback(async (): Promise<ApplicationRecord[]> => {
+    setIsSyncingApplications(true);
+    try {
+      // 1. Fetch directly from MongoDB backend applications API
+      const dbRes = await applicationApi.listApplications({
+        phone: user?.phoneNumber,
+        scope: user?.role === 'admin' ? 'all' : undefined,
+        limit: 200,
+      });
+
+      const dbApps: ApplicationRecord[] = Array.isArray(dbRes.data) ? dbRes.data : [];
+
+      // 2. Reconcile with live backend queues (Aadhaar, Ration, PAN, Voter, Driving, Vehicle)
+      const reconciled = await syncLiveApplicationsWithBackend(dbApps);
+      setApplications(reconciled);
+      return reconciled;
+    } catch (err) {
+      console.warn('Failed to refresh applications from database:', err);
+      return [];
+    } finally {
+      setIsSyncingApplications(false);
+    }
+  }, [user?.phoneNumber, user?.role]);
+
+  // Keep applications synchronized with backend database and live updates
   useEffect(() => {
     const onStorageSync = () => {
-      setApplications(loadStoredApplications(user?._id));
+      refreshApplications();
     };
+
     window.addEventListener('storage', onStorageSync);
-    return () => window.removeEventListener('storage', onStorageSync);
-  }, [user?._id]);
+    window.addEventListener('app_status_updated', onStorageSync);
+
+    // Initial load directly from MongoDB database
+    refreshApplications();
+
+    // Periodic live sync every 15 seconds so admin updates reflect in real-time
+    const interval = setInterval(refreshApplications, 15000);
+
+    return () => {
+      window.removeEventListener('storage', onStorageSync);
+      window.removeEventListener('app_status_updated', onStorageSync);
+      clearInterval(interval);
+    };
+  }, [refreshApplications]);
 
   const openService = (service: ServiceItem) => {
     setSelectedService(service);
@@ -433,38 +449,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const deductWallet = (
-    wallet: WalletType,
+    _wallet: WalletType,
     amount: number,
     title: string,
     refId: string
   ): boolean => {
-    if (wallet === 'payments') {
-      if (paymentsWallet < amount) {
-        return false;
-      }
-      setPaymentsWallet((prev) => {
-        const nextVal = +(prev - amount).toFixed(2);
-        if (user?._id) {
-          try {
-            localStorage.setItem(`esevai_wallet_pay_${user._id}`, String(nextVal));
-          } catch {}
-        }
-        return nextVal;
-      });
-    } else {
-      if (cardsWallet < amount) {
-        return false;
-      }
-      setCardsWallet((prev) => {
-        const nextVal = +(prev - amount).toFixed(2);
-        if (user?._id) {
-          try {
-            localStorage.setItem(`esevai_wallet_card_${user._id}`, String(nextVal));
-          } catch {}
-        }
-        return nextVal;
-      });
+    if (walletBalance < amount) {
+      return false;
     }
+    const nextVal = +(walletBalance - amount).toFixed(2);
+    setWalletBalance(nextVal);
+    setPaymentsWallet(nextVal);
+    setCardsWallet(nextVal);
+    try {
+      localStorage.setItem('esevai_wallet_balance', String(nextVal));
+    } catch {}
 
     // Record transaction
     const now = new Date();
@@ -473,7 +472,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       title,
       amount,
       type: 'debit',
-      wallet,
+      wallet: 'payments',
       date: now.toISOString().split('T')[0],
       time: `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
       status: 'SUCCESS',
@@ -492,27 +491,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const creditWallet = (wallet: WalletType, amount: number, method: string) => {
-    if (wallet === 'payments') {
-      setPaymentsWallet((prev) => {
-        const nextVal = +(prev + amount).toFixed(2);
-        if (user?._id) {
-          try {
-            localStorage.setItem(`esevai_wallet_pay_${user._id}`, String(nextVal));
-          } catch {}
-        }
-        return nextVal;
-      });
-    } else {
-      setCardsWallet((prev) => {
-        const nextVal = +(prev + amount).toFixed(2);
-        if (user?._id) {
-          try {
-            localStorage.setItem(`esevai_wallet_card_${user._id}`, String(nextVal));
-          } catch {}
-        }
-        return nextVal;
-      });
-    }
+    const nextVal = +(walletBalance + amount).toFixed(2);
+    setWalletBalance(nextVal);
+    setPaymentsWallet(nextVal);
+    setCardsWallet(nextVal);
+    try {
+      localStorage.setItem('esevai_wallet_balance', String(nextVal));
+    } catch {}
 
     const now = new Date();
     const newTxn: TransactionRecord = {
@@ -550,6 +535,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       ? 'BC-TN'
       : app.serviceId.includes('death')
       ? 'DC-TN'
+      : app.serviceId.includes('aadhaar')
+      ? 'UID-TN'
+      : app.serviceId.includes('pan')
+      ? 'PAN-TN'
+      : app.serviceId.includes('voter')
+      ? 'VOT-TN'
+      : app.serviceId.includes('driving')
+      ? 'DL-TN'
+      : app.serviceId.includes('vehicle')
+      ? 'VAH-TN'
       : 'APP';
 
     const tokenNumber = `${prefix}-${now.getFullYear()}-${Math.floor(10000 + Math.random() * 90000)}`;
@@ -558,39 +553,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id: `app-${Date.now()}`,
       tokenNumber,
       date: `${now.toISOString().split('T')[0]} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`,
+      status: app.status || 'Under Review',
+      paymentStatus:
+        app.paymentStatus ||
+        (app.paymentMethod?.toLowerCase().includes('wallet')
+          ? 'Verified & Approved'
+          : 'Pending Verification'),
     };
 
     const appTicket = (app.details?.ticketNumber as string) || tokenNumber;
 
-    if (app.utrNumber) {
-      paymentApi.submitPayment({
-        ticketNumber: appTicket,
-        serviceId: app.serviceId,
-        serviceName: app.serviceName,
-        category: (app.details?.categoryLabel as string) || 'General',
-        applicantName: app.applicantName,
-        applicantPhone: app.mobile,
-        amount: app.paidAmount || app.fee || 0,
-        utrNumber: app.utrNumber,
-        upiIdUsed: app.upiIdUsed || paymentSettings.upiId,
-        paymentScreenshot: app.paymentScreenshot,
-        paymentMethod: app.paymentMethod || 'UPI QR',
-        status: app.paymentStatus || 'Pending Verification',
-      });
+    // Immediately update React in-memory state for instantaneous UI responsiveness
+    setApplications((prev) => [newApp, ...prev.filter((a) => a.tokenNumber !== tokenNumber)]);
+
+    // 1. Persist directly to MongoDB database
+    applicationApi
+      .createApplication({
+        ...newApp,
+        tokenNumber: appTicket,
+      })
+      .then((res) => {
+        if (res.success && res.data) {
+          // Reconcile temporary ID with real MongoDB ID
+          setApplications((prev) =>
+            prev.map((a) =>
+              a.tokenNumber === tokenNumber ? { ...a, id: (res.data as any)._id || a.id } : a
+            )
+          );
+        }
+      })
+      .catch((err) => console.error('Database application save error:', err));
+
+    // 2. Persist payment record to MongoDB database
+    if (app.paidAmount || app.utrNumber) {
+      paymentApi
+        .submitPayment({
+          ticketNumber: appTicket,
+          serviceId: app.serviceId,
+          serviceName: app.serviceName,
+          category: (app.details?.categoryLabel as string) || 'General',
+          applicantName: app.applicantName,
+          applicantPhone: app.mobile,
+          amount: app.paidAmount || app.fee || 0,
+          utrNumber: app.utrNumber || `WAL-${Date.now()}`,
+          upiIdUsed: app.upiIdUsed || paymentSettings.upiId,
+          paymentScreenshot: app.paymentScreenshot,
+          paymentMethod: app.paymentMethod || 'Wallet',
+          status:
+            app.paymentStatus ||
+            (app.paymentMethod?.toLowerCase().includes('wallet')
+              ? 'Verified & Approved'
+              : 'Pending Verification'),
+        })
+        .catch((err) => console.error('Database payment save error:', err));
     }
 
-    setApplications((prev) => {
-      const nextApps = [newApp, ...prev];
-      try {
-        if (user?._id) {
-          localStorage.setItem(`esevai_apps_${user._id}`, JSON.stringify(nextApps));
-        }
-        localStorage.setItem('esevai_apps_all', JSON.stringify(nextApps));
-      } catch {}
-      return nextApps;
-    });
-
-    // Always open the confirmation modal notifying that admin will approve soon and contact
+    // Always open the confirmation modal notifying citizen
     setPaymentSuccessModalData(newApp);
 
     addNotification(
@@ -601,15 +619,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateApplicationStatus = (id: string, status: ApplicationRecord['status']) => {
-    setApplications((prev) => {
-      const nextApps = prev.map((app) => (app.id === id ? { ...app, status } : app));
-      if (user?._id) {
-        try {
-          localStorage.setItem(`esevai_apps_${user._id}`, JSON.stringify(nextApps));
-        } catch {}
-      }
-      return nextApps;
-    });
+    // 1. Update in-memory state
+    setApplications((prev) =>
+      prev.map((app) => (app.id === id || app.tokenNumber === id ? { ...app, status } : app))
+    );
+    // 2. Persist to MongoDB database
+    applicationApi.updateStatus(id, status).catch(console.warn);
+    syncTicketStatusToLocal(id, status);
   };
 
   const updateProfile = (updated: Partial<CenterProfile>) => {
@@ -674,6 +690,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         openPaymentDialog,
         paymentSuccessModalData,
         setPaymentSuccessModalData,
+        walletBalance,
+        refreshWalletBalance,
         paymentsWallet,
         cardsWallet,
         deductWallet,
@@ -695,11 +713,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         notifications,
         markAllNotificationsRead,
         addNotification,
+        refreshApplications,
+        isSyncingApplications,
       }}
     >
       {children}
       {paymentDialogParams && (
-        <PaymentModal
+        <WalletCheckoutModal
           isOpen={paymentDialogParams.isOpen}
           onClose={() => setPaymentDialogParams(null)}
           serviceName={paymentDialogParams.serviceName}
@@ -707,7 +727,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           amount={paymentDialogParams.amount}
           applicantName={paymentDialogParams.applicantName}
           applicantPhone={paymentDialogParams.applicantPhone}
-          settings={paymentSettings}
+          serviceId={paymentDialogParams.serviceId}
+          ticketNumber={paymentDialogParams.ticketNumber}
           onConfirmPayment={paymentDialogParams.onConfirmed}
         />
       )}

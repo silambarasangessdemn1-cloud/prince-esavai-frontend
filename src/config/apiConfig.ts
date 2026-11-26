@@ -28,9 +28,10 @@ export const API_ENDPOINTS = {
   ration: `${API_ROOT}/ration`,
   driving: `${API_ROOT}/driving`,
   vehicle: `${API_ROOT}/vehicle`,
-  farmer: `${API_ROOT}/farmer`,
   pricing: `${API_ROOT}/pricing`,
   payments: `${API_ROOT}/payments`,
+  wallet: `${API_ROOT}/wallet`,
+  applications: `${API_ROOT}/applications`,
 } as const;
 
 /**

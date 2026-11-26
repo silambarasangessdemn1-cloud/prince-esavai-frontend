@@ -8,7 +8,7 @@ import { API_ENDPOINTS } from '../config/apiConfig';
 const BASE = API_ENDPOINTS.vehicle;
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),

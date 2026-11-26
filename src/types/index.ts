@@ -16,6 +16,7 @@ export type ServiceFormType =
   | 'vehicle_rc'
   | 'driving_license'
   | 'aadhaar_issue'
+  | 'name_transfer'
   | 'generic';
 
 export interface ServiceItem {
@@ -44,9 +45,9 @@ export interface ServiceCategory {
   services: ServiceItem[];
 }
 
-export type ApplicationStatus = 'Completed' | 'In Process' | 'Under Review' | 'Rejected';
+export type ApplicationStatus = 'Completed' | 'In Process' | 'Under Review' | 'Rejected' | 'Pending' | 'Failed';
 
-export type PaymentStatus = 'Pending Verification' | 'Verified & Approved' | 'Rejected' | 'Exempted';
+export type PaymentStatus = 'Pending Verification' | 'Verified & Approved' | 'Rejected' | 'Exempted' | 'Failed';
 
 export interface ApplicationRecord {
   id: string;
@@ -60,7 +61,7 @@ export interface ApplicationRecord {
   fee: number;
   walletType: WalletType;
   details: Record<string, any>;
-  documents?: { name: string; size: string }[];
+  documents?: { name: string; size?: string; url?: string; type?: string }[];
   remarks?: string;
 
   // Payment & UTR Verification Details

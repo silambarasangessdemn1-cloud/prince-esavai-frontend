@@ -38,7 +38,6 @@ export const GenericServiceForm: React.FC<GenericServiceFormProps> = ({ service 
     if (service.name.includes('VOTER')) return '10 Digit EPIC / Voter ID No';
     if (service.name.includes('DL')) return 'Driving License Number';
     if (service.name.includes('CIBIL')) return 'Aadhaar / PAN Number';
-    if (service.name.includes('AGRI')) return 'Farmer ID / Patta Number';
     if (service.name.includes('UDID')) return '18 Digit UDID Number';
     return 'Enter Reference / ID Number';
   };

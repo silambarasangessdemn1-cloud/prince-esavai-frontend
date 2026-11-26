@@ -46,7 +46,8 @@ export type RationFormType =
   | 'photo_change'
   | 'number_missing'
   | 'smartcard_qr'
-  | 'green_card';
+  | 'green_card'
+  | 'name_transfer';
 
 export interface RationServiceCard {
   id: string;
@@ -224,6 +225,19 @@ const RATION_SERVICES: RationServiceCard[] = [
     backendServiceType: 'Smart Card PDF Green Card',
     defaultDescription: 'Full color Green Ration Card PDF copy for print and laminate.',
     formType: 'green_card',
+  },
+  {
+    id: 'name-transfer',
+    name: 'NAME TRANSFER (பெயர் மாற்றம்)',
+    tamilSubtitle: 'பெயர் மாற்றம்',
+    actionLabel: 'NAME TRANSFER',
+    category: 'corrections',
+    iconType: 'smartcard',
+    cornerColor: 'green',
+    actionColor: 'green',
+    backendServiceType: 'Name Transfer',
+    defaultDescription: 'Transfer family member name to new smart card with Aadhaar & Smart Card proof.',
+    formType: 'name_transfer',
   },
 ];
 
@@ -477,7 +491,7 @@ export const RationServicesView: React.FC = () => {
 
     // 1. Aadhaar Card Photo
     if (
-      ['add_member', 'remove_member', 'family_head_change', 'number_missing'].includes(ft) &&
+      ['add_member', 'remove_member', 'family_head_change', 'number_missing', 'name_transfer'].includes(ft) &&
       !uploadedFiles.aadhaarPhoto
     ) {
       errors.aadhaarPhoto = 'ஆதார் கார்டு போட்டோ பதிவேற்றம் செய்க (Aadhaar Card Photo is required).';
@@ -497,10 +511,14 @@ export const RationServicesView: React.FC = () => {
         'photo_change',
         'smartcard_qr',
         'green_card',
+        'name_transfer',
       ].includes(ft) &&
       !uploadedFiles.smartCardPhoto
     ) {
-      errors.smartCardPhoto = 'ஸ்மார்ட் கார்டு போட்டோ பதிவேற்றம் செய்க (Smart Card Photo is required).';
+      errors.smartCardPhoto =
+        ft === 'name_transfer'
+          ? 'புதிய ஸ்மார்ட் கார்டு போட்டோ பதிவேற்றம் செய்க (New Smart Card Photo is required).'
+          : 'ஸ்மார்ட் கார்டு போட்டோ பதிவேற்றம் செய்க (Smart Card Photo is required).';
     }
 
     // 3. Passport Size Photo
@@ -532,7 +550,10 @@ export const RationServicesView: React.FC = () => {
     // 7. Smart Card Number
     if (ft !== 'number_missing') {
       if (!formData.smartCardNumber.trim()) {
-        errors.smartCardNumber = 'ஸ்மார்ட் கார்டு எண் தேவை (Smart Card Number is required).';
+        errors.smartCardNumber =
+          ft === 'name_transfer'
+            ? 'புதிய ஸ்மார்ட் கார்டு எண் தேவை (New Smart Card Number is required).'
+            : 'ஸ்மார்ட் கார்டு எண் தேவை (Smart Card Number is required).';
       }
     }
 
@@ -609,7 +630,10 @@ export const RationServicesView: React.FC = () => {
           documentsList.push({ name: 'Aadhaar Card Photo', url: uploadedFiles.aadhaarPhoto.dataUrl });
         }
         if (uploadedFiles.smartCardPhoto) {
-          documentsList.push({ name: 'Smart Card Photo', url: uploadedFiles.smartCardPhoto.dataUrl });
+          documentsList.push({
+            name: selectedService.formType === 'name_transfer' ? 'New Smart Card Photo' : 'Smart Card Photo',
+            url: uploadedFiles.smartCardPhoto.dataUrl,
+          });
         }
         if (uploadedFiles.passportPhoto) {
           documentsList.push({ name: 'Passport Size Photo', url: uploadedFiles.passportPhoto.dataUrl });
@@ -666,6 +690,7 @@ export const RationServicesView: React.FC = () => {
               formData.newPhone ? `New Phone: ${formData.newPhone}` : '',
             ].filter(Boolean).join(' | '),
             remarksOrNotes: `Submitted from Ration Services Portal. Service: ${selectedService.name}`,
+            documents: documentsList,
             priority: 'Medium',
           });
 
@@ -1279,7 +1304,7 @@ export const RationServicesView: React.FC = () => {
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {/* 1. Aadhaar Card Photo */}
-                      {['add_member', 'remove_member', 'family_head_change', 'number_missing'].includes(
+                      {['add_member', 'remove_member', 'family_head_change', 'number_missing', 'name_transfer'].includes(
                         selectedService.formType
                       ) && (
                         <FileUploadField
@@ -1310,10 +1335,11 @@ export const RationServicesView: React.FC = () => {
                         'photo_change',
                         'smartcard_qr',
                         'green_card',
+                        'name_transfer',
                       ].includes(selectedService.formType) && (
                         <FileUploadField
-                          label="Smart Card Photo"
-                          tamilLabel="ஸ்மார்ட் கார்டு ஃபோட்டோ"
+                          label={selectedService.formType === 'name_transfer' ? 'New Smart Card Photo' : 'Smart Card Photo'}
+                          tamilLabel={selectedService.formType === 'name_transfer' ? 'புதிய ஸ்மார்ட் கார்டு ஃபோட்டோ' : 'ஸ்மார்ட் கார்டு ஃபோட்டோ'}
                           file={uploadedFiles.smartCardPhoto}
                           onChange={(doc) => {
                             setUploadedFiles({ ...uploadedFiles, smartCardPhoto: doc });
@@ -1467,7 +1493,10 @@ export const RationServicesView: React.FC = () => {
                     {selectedService.formType !== 'number_missing' && (
                       <div>
                         <label className="block text-xs font-bold text-slate-700 mb-1">
-                          ஸ்மார்ட் கார்டு நம்பர் (Smart Card Number) <span className="text-red-500">*</span>
+                          {selectedService.formType === 'name_transfer'
+                            ? 'புதிய ஸ்மார்ட் கார்டு எண் (New Smart Card Number)'
+                            : 'ஸ்மார்ட் கார்டு நம்பர் (Smart Card Number)'}{' '}
+                          <span className="text-red-500">*</span>
                         </label>
                         <div className="relative">
                           <CreditCard className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1479,7 +1508,11 @@ export const RationServicesView: React.FC = () => {
                               setFormData({ ...formData, smartCardNumber: e.target.value.toUpperCase() });
                               setFieldErrors({ ...fieldErrors, smartCardNumber: '' });
                             }}
-                            placeholder="e.g. 33/W/0123456 or 12-digit number"
+                            placeholder={
+                              selectedService.formType === 'name_transfer'
+                                ? 'Enter New Smart Card Number (e.g. 33/W/0123456)'
+                                : 'e.g. 33/W/0123456 or 12-digit number'
+                            }
                             className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-lg text-sm font-mono font-bold uppercase focus:border-emerald-500 outline-none"
                           />
                         </div>

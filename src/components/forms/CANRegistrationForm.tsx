@@ -109,7 +109,7 @@ export const CANRegistrationForm: React.FC = () => {
             mobile: formData.applicantMobile,
             status: 'Under Review',
             fee,
-            walletType: 'cards',
+            walletType: 'payments',
             details: {
               ...formData,
             },

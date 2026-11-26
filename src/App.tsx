@@ -13,7 +13,6 @@ import { RationServicesView } from './components/RationServicesView';
 import { CanServicesView } from './components/CanServicesView';
 import { DrivingServicesView } from './components/DrivingServicesView';
 import { VehicleServicesView } from './components/VehicleServicesView';
-import { FarmerServicesView } from './components/FarmerServicesView';
 import { AdminPortalView } from './components/AdminPortalView';
 import { AdminLoginPage } from './components/AdminLoginPage';
 import { AdminPortalWrapper } from './components/AdminPortalWrapper';
@@ -82,6 +81,8 @@ const DashboardContent: React.FC = () => {
       case 'service_history':
       case 'all_service_status':
         return <ServiceHistoryView />;
+      case 'passbook':
+      case 'wallet':
       case 'wallet_passbook':
         return <WalletPassbookView />;
       case 'change_password':
@@ -104,8 +105,6 @@ const DashboardContent: React.FC = () => {
         return <DrivingServicesView />;
       case 'vehicle_services':
         return <VehicleServicesView />;
-      case 'farmer_services':
-        return <FarmerServicesView />;
       case 'aadhaar_issues':
         return <AadhaarCorrectionsView />;
       case 'aadhaar_issue_form':

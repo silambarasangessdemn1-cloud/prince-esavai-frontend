@@ -8,7 +8,6 @@ import {
   Fingerprint,
   CreditCard,
   Car,
-  Sprout,
   Vote,
   FileEdit,
   Printer,
@@ -39,11 +38,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { id: 'voter_services', label: 'VOTER SERVICES', icon: Vote },
     { id: 'pan_services', label: 'PAN SERVICES', icon: CreditCard },
     // { id: 'pvc_services', label: 'PVC CARD PRINT', icon: Printer },
-    // { id: 'farmer_services', label: 'FARMER SERVICES', icon: Sprout },
     // Driving & Vehicle services placed last as requested:
     { id: 'driving_services', label: 'DRIVING SERVICES', icon: ShieldCheck },
     { id: 'vehicle_services', label: 'VEHICLE SERVICES', icon: Car },
     // Administrative & Tracking views:
+    { id: 'wallet_passbook', label: 'WALLET & PASSBOOK', icon: Wallet },
     { id: 'service_history', label: 'SERVICE HISTORY', icon: History },
     { id: 'other_services', label: 'OTHER SERVICES', icon: Layers },
     { id: 'all_service_status', label: 'ALL SERVICE STATUS', icon: ListChecks },

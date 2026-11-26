@@ -8,7 +8,7 @@ import { API_ENDPOINTS } from '../config/apiConfig';
 const BASE = API_ENDPOINTS.ration;
 
 function authHeaders(): Record<string, string> {
-  const token = localStorage.getItem('token') || localStorage.getItem('admin_token');
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -77,6 +77,13 @@ export interface RationRequest {
   members?: FamilyMember[];
   correctionDetails?: string;
   remarksOrNotes?: string;
+  documents?: Array<{
+    name: string;
+    url?: string;
+    type?: string;
+    size?: string;
+    uploadedAt?: string;
+  }>;
   priority: 'Low' | 'Medium' | 'High' | 'Urgent';
   status: string;
   tnpdsAckNumber?: string;
@@ -140,6 +147,12 @@ export interface SubmitRationPayload {
   members?: FamilyMember[];
   correctionDetails?: string;
   remarksOrNotes?: string;
+  documents?: Array<{
+    name: string;
+    url?: string;
+    type?: string;
+    size?: string;
+  }>;
   priority?: string;
 }
 

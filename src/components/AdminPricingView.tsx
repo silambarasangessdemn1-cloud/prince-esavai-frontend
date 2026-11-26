@@ -239,119 +239,82 @@ export const AdminPricingView: React.FC = () => {
         </div>
       </div>
 
-      {/* UPI QR Gateway Configuration Box */}
+      {/* Cashfree Payment Gateway & Wallet Engine Status */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <QrCode className="w-5 h-5 text-emerald-600" />
+            <CreditCard className="w-5 h-5 text-emerald-600" />
             <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
-              UPI QR Code & Payee Configuration
+              Cashfree Payment Gateway & Wallet System
             </h2>
           </div>
-          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
-            Active Payee: {settings.payeeName}
+          <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            Cashfree Gateway: ACTIVE (Sandbox)
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
-          {/* Current QR Code Image Preview */}
-          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex flex-col items-center text-center">
-            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
-              Citizen Payment QR
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              Payment Provider
             </span>
-            <div className="bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
-              <img
-                src={settings.qrCodeImage || '/assets/qrcode.jpeg'}
-                alt="Active QR Code"
-                className="w-40 h-40 object-contain rounded-lg"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = '/assets/qrcode.jpeg';
-                }}
-              />
-            </div>
-            <label className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-xs font-bold text-slate-700 cursor-pointer shadow-2xs transition-colors">
-              <Upload className="w-3.5 h-3.5 text-slate-500" />
-              <span>Change QR Code Image</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleQrUpload}
-                className="hidden"
-              />
-            </label>
+            <span className="text-sm font-black text-slate-900 block">
+              Cashfree Payments PG
+            </span>
+            <span className="text-xs text-slate-500 font-mono">
+              App ID: TEST11375745...
+            </span>
           </div>
 
-          {/* Payee Settings Form */}
-          <div className="md:col-span-2 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Payee Account Name
-                </label>
-                <input
-                  type="text"
-                  value={settings.payeeName}
-                  onChange={(e) => {
-                    setSettings((prev) => ({ ...prev, payeeName: e.target.value }));
-                    setHasChanges(true);
-                  }}
-                  placeholder="e.g. j jesper"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider block mb-1">
-                  Merchant / Personal UPI ID
-                </label>
-                <input
-                  type="text"
-                  value={settings.upiId}
-                  onChange={(e) => {
-                    setSettings((prev) => ({ ...prev, upiId: e.target.value }));
-                    setHasChanges(true);
-                  }}
-                  placeholder="e.g. jjesper143@oksbi"
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                />
-              </div>
-            </div>
-
-            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <span className="font-bold block">How Citizen Verification Works:</span>
-                <p className="text-amber-800">
-                  When citizens fill out a service form, they are prompted to scan this QR code, pay the exact fee for that service, and enter their 12-digit UPI UTR number. The application will be marked <strong>"Pending Verification"</strong> until you verify it under <strong>Payment Verifications</strong>.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between pt-1">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={settings.isPaymentRequired}
-                  onChange={(e) => {
-                    setSettings((prev) => ({ ...prev, isPaymentRequired: e.target.checked }));
-                    setHasChanges(true);
-                  }}
-                  className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                />
-                <span className="text-xs font-bold text-slate-800">
-                  Enforce UPI QR Payment before any form submission
-                </span>
-              </label>
-
-              <button
-                type="button"
-                onClick={handleSaveAll}
-                className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
-              >
-                Save Gateway Settings
-              </button>
-            </div>
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              Wallet Top-Up Limits
+            </span>
+            <span className="text-sm font-black text-slate-900 block">
+              Min ₹10 — Max ₹50,000
+            </span>
+            <span className="text-xs text-slate-500">
+              UPI, Cards & Netbanking Supported
+            </span>
           </div>
+
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block">
+              Auto-Deduct Ledger
+            </span>
+            <span className="text-sm font-black text-emerald-700 block">
+              Automatic Zero-Wait Processing
+            </span>
+            <span className="text-xs text-slate-500">
+              Deducted securely upon form submit
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+          <label className="flex items-center gap-2 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={settings.isPaymentRequired}
+              onChange={(e) => {
+                setSettings((prev) => ({ ...prev, isPaymentRequired: e.target.checked }));
+                setHasChanges(true);
+              }}
+              className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500 cursor-pointer"
+            />
+            <span className="text-xs font-bold text-slate-800">
+              Enforce Wallet Balance deduction before service application submission
+            </span>
+          </label>
+
+          <button
+            type="button"
+            onClick={handleSaveAll}
+            className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors cursor-pointer"
+          >
+            Save Gateway Settings
+          </button>
         </div>
       </div>
 
@@ -389,7 +352,6 @@ export const AdminPricingView: React.FC = () => {
             { id: 'voter', label: `Voter (${ALL_SERVICES.filter(s => s.category === 'voter').length})` },
             { id: 'driving', label: `Driving (${ALL_SERVICES.filter(s => s.category === 'driving').length})` },
             { id: 'vehicle', label: `Vehicle (${ALL_SERVICES.filter(s => s.category === 'vehicle').length})` },
-            { id: 'farmer', label: `Farmer (${ALL_SERVICES.filter(s => s.category === 'farmer').length})` },
             { id: 'certificate', label: `Certificates & PVC (${ALL_SERVICES.filter(s => s.category === 'certificate').length})` },
           ].map((cat) => (
             <button

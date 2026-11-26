@@ -18,7 +18,7 @@ export const AdminPortalWrapper: React.FC<AdminPortalWrapperProps> = ({
   onGoToCitizenPortal,
 }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [activeQueue, setActiveQueue] = useState<AdminQueue>('aadhaar');
+  const [activeQueue, setActiveQueue] = useState<AdminQueue>('dashboard');
   const [quickTab, setQuickTab] = useState<AdminQuickTab>('all');
   const [counts, setCounts] = useState<AdminQueueCounts>({
     aadhaar: 0,
@@ -27,7 +27,6 @@ export const AdminPortalWrapper: React.FC<AdminPortalWrapperProps> = ({
     ration: 0,
     driving: 0,
     vehicle: 0,
-    farmer: 0,
     total: 0,
   });
   const [isRefreshing, setIsRefreshing] = useState(false);
