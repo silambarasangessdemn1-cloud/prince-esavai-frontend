@@ -65,6 +65,41 @@ export async function getCashfreeInstance(env: 'sandbox' | 'production' = 'sandb
   });
 }
 
+export interface UserRechargeRecord {
+  transactionId: string;
+  orderId: string;
+  amount: number;
+  balanceAfter: number;
+  paymentMethod: string;
+  createdAt: string;
+  dateFormatted: string;
+  timeFormatted: string;
+  status: string;
+  description: string;
+}
+
+export interface AdminUserRechargeItem {
+  userId: string;
+  name: string;
+  phone: string;
+  walletBalance: number;
+  totalAmountAdded: number;
+  rechargeCount: number;
+  lastRechargedAt: string | null;
+  lastRechargedTimeFormatted: string;
+  recharges: UserRechargeRecord[];
+  joinedAt: string;
+}
+
+export interface AdminUsersRechargesResponse {
+  users: AdminUserRechargeItem[];
+  summary: {
+    totalUsers: number;
+    activeRechargingUsers: number;
+    totalRechargedAllUsers: number;
+  };
+}
+
 export const walletApi = {
   /**
    * Fetch current user's wallet balance
@@ -257,5 +292,26 @@ export const walletApi = {
       throw new Error(json.message || 'Failed to adjust user wallet');
     }
     return json.data;
+  },
+
+  /**
+   * Admin: Get all users with total amount added and timestamped recharge history
+   */
+  async getAdminUsersRecharges(): Promise<AdminUsersRechargesResponse> {
+    try {
+      const res = await fetch(`${WALLET_BASE}/admin/users-recharges`, {
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && json.data) {
+          return json.data;
+        }
+      }
+    } catch {}
+    return {
+      users: [],
+      summary: { totalUsers: 0, activeRechargingUsers: 0, totalRechargedAllUsers: 0 },
+    };
   },
 };
